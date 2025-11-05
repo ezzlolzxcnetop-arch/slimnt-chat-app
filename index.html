@@ -22,6 +22,8 @@
                         'revent-text': '#e0e0e0',
                         // Цвет более тусклого текста/разделителей
                         'revent-subtle': '#8f9ba8',
+                        // Цвет для ошибок/предупреждений
+                        'revent-error': '#ff6347', 
                     },
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
@@ -86,14 +88,53 @@
 
     <!-- Общий контейнер для всего содержимого чата, который будет поверх particles.js --><div id="app-content" class="h-full flex">
 
-        <!-- Предзагрузочный экран / Экран аутентификации --><div id="loading-view" class="h-full w-full absolute top-0 left-0 flex items-center justify-center bg-revent-dark/90 z-20">
-            <div class="text-xl text-revent-accent flex items-center space-x-2">
-                <!-- Простой спиннер --><svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-revent-accent" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span>Подключение к серверу...</span>
+        <!-- ЭКРАН АУТЕНТИФИКАЦИИ / ЗАГРУЗКИ (ВИДЕН СНАЧАЛА) --><div id="auth-view" class="h-full w-full absolute top-0 left-0 flex items-center justify-center bg-revent-dark/90 z-20">
+            
+            <!-- Форма Входа / Регистрации --><div id="auth-card" class="bg-revent-panel p-8 rounded-xl shadow-2xl w-full max-w-sm transform transition duration-500 ease-in-out scale-100">
+                <h2 id="auth-title" class="text-2xl font-bold text-center mb-6 text-revent-accent">Вход в Revent Chat</h2>
+                
+                <form id="auth-form">
+                    <div class="mb-4">
+                        <label for="auth-email" class="block text-sm font-medium text-revent-subtle mb-1">Email</label>
+                        <input type="email" id="auth-email" name="email" required placeholder="name@example.com"
+                               class="w-full p-3 rounded-lg bg-revent-active/30 text-revent-text placeholder-revent-subtle focus:outline-none focus:ring-2 focus:ring-revent-accent border border-transparent focus:border-revent-accent/50">
+                    </div>
+                    <div class="mb-6">
+                        <label for="auth-password" class="block text-sm font-medium text-revent-subtle mb-1">Пароль</label>
+                        <input type="password" id="auth-password" name="password" required placeholder="Введите пароль"
+                               class="w-full p-3 rounded-lg bg-revent-active/30 text-revent-text placeholder-revent-subtle focus:outline-none focus:ring-2 focus:ring-revent-accent border border-transparent focus:border-revent-accent/50">
+                    </div>
+                    
+                    <button type="submit" id="auth-submit-btn" class="w-full bg-revent-accent text-black font-semibold p-3 rounded-lg hover:bg-revent-accent/80 transition duration-300 shadow-lg shadow-revent-accent/30 flex items-center justify-center space-x-2">
+                        <span id="auth-btn-text">Войти</span>
+                        <!-- Спиннер (изначально скрыт) -->
+                        <svg id="auth-spinner" class="animate-spin h-5 w-5 text-black hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </button>
+                    
+                    <!-- Сообщение об ошибке --><p id="auth-error-message" class="mt-4 text-center text-revent-error text-sm hidden"></p>
+                </form>
+
+                <!-- Гостевой вход (Новый блок) --><div class="mt-4 pt-4 border-t border-revent-active/50">
+                    <button id="guest-login-btn" onclick="window.signInAsGuest()" class="w-full bg-revent-active/50 text-revent-text font-semibold p-3 rounded-lg hover:bg-revent-active transition duration-300 flex items-center justify-center space-x-2">
+                        <span id="guest-btn-text">Войти как Гость</span>
+                        <!-- Спиннер для гостевого входа (используем тот же шаблон) -->
+                        <svg id="guest-spinner" class="animate-spin h-5 w-5 text-revent-text hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="mt-6 text-center">
+                    <button id="auth-switch-link" class="text-revent-subtle hover:text-revent-text text-sm transition duration-150">
+                        Нет аккаунта? <span class="font-bold text-revent-accent">Зарегистрироваться</span>
+                    </button>
+                </div>
             </div>
+            
         </div>
 
         <!-- Основной вид чата (Изначально скрыт) --><div id="chat-view" class="flex h-full w-full hidden">
@@ -142,6 +183,10 @@
                     <div class="w-8 h-8 rounded-full bg-revent-accent flex items-center justify-center font-bold text-black text-sm" id="user-avatar">G</div>
                     <div class="flex-1 min-w-0">
                         <div class="font-semibold text-sm truncate" id="user-display-name">Гость</div>
+                        <!-- Кнопка выхода -->
+                        <button id="logout-button" onclick="window.handleLogout()" class="text-xs text-revent-error hover:text-red-300 transition duration-150">
+                            Выход
+                        </button>
                         <div class="text-xs text-revent-subtle truncate" id="user-display-id"></div>
                     </div>
                 </div>
@@ -301,7 +346,8 @@
     <script type="module">
         // --- Firebase Imports ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        // Добавлен signInAnonymously для гостевого входа
+        import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, signOut, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, query, onSnapshot, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -313,11 +359,29 @@
         const CHAT_TITLE = document.getElementById('chat-title');
         const CHANNEL_LIST = document.getElementById('channel-list');
         const CHAT_VIEW = document.getElementById('chat-view');
-        const LOADING_VIEW = document.getElementById('loading-view');
+        // Переименованный главный контейнер аутентификации
+        const AUTH_VIEW = document.getElementById('auth-view'); 
         const USER_DISPLAY_NAME = document.getElementById('user-display-name');
         const USER_DISPLAY_ID = document.getElementById('user-display-id');
         const USER_AVATAR = document.getElementById('user-avatar');
         
+        // Новые константы для UI аутентификации
+        const AUTH_FORM = document.getElementById('auth-form');
+        const AUTH_TITLE = document.getElementById('auth-title');
+        const AUTH_EMAIL_INPUT = document.getElementById('auth-email');
+        const AUTH_PASSWORD_INPUT = document.getElementById('auth-password');
+        const AUTH_SUBMIT_BTN = document.getElementById('auth-submit-btn');
+        const AUTH_BTN_TEXT = document.getElementById('auth-btn-text');
+        const AUTH_SPINNER = document.getElementById('auth-spinner');
+        const AUTH_ERROR_MESSAGE = document.getElementById('auth-error-message');
+        const AUTH_SWITCH_LINK = document.getElementById('auth-switch-link');
+        
+        // Константы для гостевого входа
+        const GUEST_LOGIN_BTN = document.getElementById('guest-login-btn');
+        const GUEST_BTN_TEXT = document.getElementById('guest-btn-text');
+        const GUEST_SPINNER = document.getElementById('guest-spinner');
+
+
         // Новые константы для Gemini API функций
         const DRAFT_BUTTON = document.getElementById('draft-button');
         const SUMMARY_BUTTON = document.getElementById('summary-button');
@@ -326,7 +390,7 @@
 
 
         // --- Firebase Globals (Updated with user's specific keys) ---
-        // ИСПОЛЬЗУЕМ ВАШУ КОНФИГУРАЦИЮ FIREBASE, которую вы предоставили!
+        // ИСПОЛЬЗУЕМ ВАШУ КОНФИГУРАЦИЮ FIREBASE
         const firebaseConfig = {
           apiKey: "AIzaSyB4wB9Y4U0NpqWDQ0_Iw5B4-ARcXCv_MFY",
           authDomain: "reventchat.firebaseapp.com",
@@ -336,7 +400,7 @@
           appId: "1:559607678515:web:857c2ae7d06abc775dc546"
         };
         const appId = firebaseConfig.appId; 
-        const initialAuthToken = null; // Removing custom token for public deployment
+        const initialAuthToken = null; 
 
 
         let app, db, auth;
@@ -344,6 +408,7 @@
         let currentUserId = null;
         let currentUserName = 'Гость';
         let unsubscribeMessageListener = null;
+        let isRegisterMode = false; // Состояние формы: false = Вход, true = Регистрация
         
         // --- Gemini API Globals ---
         const API_KEY = "";
@@ -353,11 +418,11 @@
         // --- TTS Globals ---
         let audioPlayer = null; // HTML Audio element for simple playback
         const TTS_API_MODEL = "gemini-2.5-flash-preview-tts";
-        const TTS_VOICE_NAME = "Kore"; // Фирменный, четкий голос
-        const PCM_SAMPLE_RATE = 24000; // Ожидаемая частота дискретизации для Kore voice (24kHz)
+        const TTS_VOICE_NAME = "Kore"; 
+        const PCM_SAMPLE_RATE = 24000; 
 
 
-        // --- Helper Functions for TTS ---
+        // --- Helper Functions for TTS (unchanged) ---
 
         // Helper to convert base64 to ArrayBuffer
         function base64ToArrayBuffer(base64) {
@@ -416,15 +481,74 @@
         }
 
 
+        // --- UI Helper Functions ---
+        
+        /**
+         * Управляет состоянием загрузки для кнопок аутентификации.
+         * @param {boolean} isGuest - Флаг, указывающий, гостевая ли это кнопка.
+         */
+        function showLoading(isGuest = false) {
+            if (isGuest) {
+                GUEST_SPINNER.classList.remove('hidden');
+                GUEST_BTN_TEXT.classList.add('hidden');
+                GUEST_LOGIN_BTN.disabled = true;
+            } else {
+                AUTH_SPINNER.classList.remove('hidden');
+                AUTH_BTN_TEXT.classList.add('hidden');
+                AUTH_SUBMIT_BTN.disabled = true;
+            }
+            AUTH_ERROR_MESSAGE.classList.add('hidden');
+            GUEST_LOGIN_BTN.disabled = true; // Отключаем обе кнопки во время процесса
+            AUTH_SUBMIT_BTN.disabled = true; 
+        }
+
+        /**
+         * Восстанавливает нормальное состояние кнопок аутентификации.
+         */
+        function hideLoading() {
+            AUTH_SPINNER.classList.add('hidden');
+            AUTH_BTN_TEXT.classList.remove('hidden');
+            AUTH_SUBMIT_BTN.disabled = false;
+            
+            GUEST_SPINNER.classList.add('hidden');
+            GUEST_BTN_TEXT.classList.remove('hidden');
+            GUEST_LOGIN_BTN.disabled = false;
+        }
+
+        function showFormError(message) {
+            AUTH_ERROR_MESSAGE.textContent = message;
+            AUTH_ERROR_MESSAGE.classList.remove('hidden');
+            // Скрыть сообщение об ошибке через 5 секунд
+            setTimeout(() => AUTH_ERROR_MESSAGE.classList.add('hidden'), 5000);
+        }
+        
+        /**
+         * Переключает режим между Входом и Регистрацией.
+         */
+        function toggleAuthMode() {
+            isRegisterMode = !isRegisterMode;
+            AUTH_FORM.reset(); // Сброс полей
+            AUTH_ERROR_MESSAGE.classList.add('hidden');
+
+            if (isRegisterMode) {
+                AUTH_TITLE.textContent = 'Регистрация нового пользователя';
+                AUTH_BTN_TEXT.textContent = 'Зарегистрироваться';
+                AUTH_SWITCH_LINK.innerHTML = 'Уже есть аккаунт? <span class="font-bold text-revent-accent">Войти</span>';
+            } else {
+                AUTH_TITLE.textContent = 'Вход в Revent Chat';
+                AUTH_BTN_TEXT.textContent = 'Войти';
+                AUTH_SWITCH_LINK.innerHTML = 'Нет аккаунта? <span class="font-bold text-revent-accent">Зарегистрироваться</span>';
+            }
+        }
+        
         // --- Firebase Setup and Authentication ---
 
         async function setupFirebase() {
             setLogLevel('Debug');
             
-            // Check if Firebase config is valid (projectId is a good minimal check)
             if (!firebaseConfig.projectId || !firebaseConfig.apiKey) {
-                console.error("Firebase Configuration is missing or invalid.");
-                 LOADING_VIEW.innerHTML = `<div class="p-8 text-center bg-revent-panel rounded-xl shadow-2xl">
+                // Если конфигурация отсутствует, показываем ошибку в модальном окне
+                 document.getElementById('auth-card').innerHTML = `<div class="p-4 text-center">
                                                     <p class="text-xl text-red-400 font-bold">Ошибка конфигурации Firebase</p>
                                                     <p class="text-revent-subtle mt-2">Пожалуйста, убедитесь, что вы заменили ключи в коде.</p>
                                                 </div>`;
@@ -436,46 +560,154 @@
             auth = getAuth(app);
 
             // Аутентификация
-            onAuthStateChanged(auth, async (user) => {
+            onAuthStateChanged(auth, (user) => {
                 if (user) {
                     currentUserId = user.uid;
-                    // Используем уникальный ID как имя по умолчанию
-                    currentUserName = user.displayName || `Пользователь-${user.uid.substring(0, 5)}`;
+                    let displayId;
+
+                    if (user.isAnonymous) {
+                        // ЛОГИКА ДЛЯ ГОСТЯ
+                        currentUserName = `Гость-${user.uid.substring(0, 5)}`;
+                        displayId = `ID: ${user.uid.substring(0, 8)}...`;
+                        
+                        USER_AVATAR.textContent = 'G';
+                        USER_AVATAR.classList.remove('bg-revent-accent', 'text-black');
+                        USER_AVATAR.classList.add('bg-revent-active', 'text-revent-text/80');
+
+                    } else {
+                        // ЛОГИКА ДЛЯ ПОЛЬЗОВАТЕЛЯ EMAIL/PASSWORD
+                        currentUserName = user.displayName || user.email.split('@')[0] || `Пользователь-${user.uid.substring(0, 5)}`;
+                        displayId = user.email;
+
+                        USER_AVATAR.textContent = currentUserName.charAt(0).toUpperCase();
+                        USER_AVATAR.classList.remove('bg-revent-active', 'text-revent-text/80');
+                        USER_AVATAR.classList.add('bg-revent-accent', 'text-black');
+                    }
 
                     // Обновление UI пользователя
-                    USER_AVATAR.textContent = currentUserName.charAt(0);
                     USER_DISPLAY_NAME.textContent = currentUserName;
-                    USER_DISPLAY_ID.textContent = currentUserId;
+                    USER_DISPLAY_ID.textContent = displayId;
 
-                    // Показываем чат
-                    LOADING_VIEW.classList.add('hidden');
+                    // Показываем чат, скрываем форму аутентификации
+                    AUTH_VIEW.classList.add('hidden');
                     CHAT_VIEW.classList.remove('hidden');
 
                     // Запускаем прослушивание сообщений для активного канала
                     listenForMessages(currentChannel);
 
                 } else {
-                    // Если пользователь не аутентифицирован, пробуем войти
-                    try {
-                        if (initialAuthToken) {
-                            await signInWithCustomToken(auth, initialAuthToken);
-                        } else {
-                            // Анонимный вход, если нет токена
-                            await signInAnonymously(auth);
-                        }
-                    } catch (error) {
-                        console.error("Firebase Auth Error:", error);
-                        // Показываем ошибку вместо чата
-                        LOADING_VIEW.innerHTML = `<div class="p-8 text-center bg-revent-panel rounded-xl shadow-2xl">
-                                                    <p class="text-xl text-red-400 font-bold">Ошибка аутентификации</p>
-                                                    <p class="text-revent-subtle mt-2">Не удалось подключиться к службе чата. ${error.message}</p>
-                                                </div>`;
+                    // Если пользователь не аутентифицирован, показываем форму входа
+                    AUTH_VIEW.classList.remove('hidden');
+                    CHAT_VIEW.classList.add('hidden');
+                    // Сбрасываем подписку на сообщения, если она была активна
+                    if (unsubscribeMessageListener) {
+                        unsubscribeMessageListener();
+                        unsubscribeMessageListener = null;
                     }
+                    MESSAGES_CONTAINER.innerHTML = '';
+                    currentUserId = null;
+                    hideLoading(); // Сбрасываем все индикаторы загрузки
                 }
             });
         }
+        
+        /**
+         * Обрабатывает Вход или Регистрацию по Email/Password.
+         */
+        AUTH_FORM.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = AUTH_EMAIL_INPUT.value.trim();
+            const password = AUTH_PASSWORD_INPUT.value.trim();
 
-        // --- Firestore Logic ---
+            if (password.length < 6) {
+                showFormError("Пароль должен быть не менее 6 символов.");
+                return;
+            }
+            
+            showLoading(false); // Загрузка для email/password
+
+            try {
+                if (isRegisterMode) {
+                    // РЕГИСТРАЦИЯ
+                    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                    
+                    // Устанавливаем отображаемое имя (берем часть email до @)
+                    const displayName = email.split('@')[0];
+                    await updateProfile(userCredential.user, { displayName: displayName });
+                    
+                    // При успешной регистрации onAuthStateChanged сам обновит UI
+                } else {
+                    // ВХОД
+                    await signInWithEmailAndPassword(auth, email, password);
+                    // При успешном входе onAuthStateChanged сам обновит UI
+                }
+
+            } catch (error) {
+                console.error("Auth Error:", error);
+                
+                let errorMessage;
+                switch (error.code) {
+                    case 'auth/user-not-found':
+                    case 'auth/wrong-password':
+                        errorMessage = "Неверный email или пароль.";
+                        break;
+                    case 'auth/email-already-in-use':
+                        errorMessage = "Этот email уже используется. Попробуйте войти.";
+                        break;
+                    case 'auth/invalid-email':
+                        errorMessage = "Неверный формат email.";
+                        break;
+                    case 'auth/weak-password':
+                        errorMessage = "Слишком слабый пароль (мин. 6 символов).";
+                        break;
+                    default:
+                        errorMessage = `Ошибка аутентификации: ${error.message.substring(0, 50)}...`;
+                        break;
+                }
+                
+                showFormError(errorMessage);
+            } finally {
+                hideLoading();
+            }
+        });
+
+        /**
+         * Обрабатывает вход как гость (анонимная аутентификация).
+         */
+        window.signInAsGuest = async function() {
+            showLoading(true); // Загрузка для гостевого входа
+            try {
+                // Анонимный вход
+                await signInAnonymously(auth);
+                // onAuthStateChanged сам обновит UI
+            } catch (error) {
+                console.error("Guest Sign-in Error:", error);
+                showFormError("Не удалось войти как гость. Попробуйте позже.");
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // Обработчик переключения режимов
+        AUTH_SWITCH_LINK.addEventListener('click', toggleAuthMode);
+        
+        /**
+         * Выход пользователя из системы.
+         */
+        window.handleLogout = async function() {
+             try {
+                await signOut(auth);
+                // onAuthStateChanged сработает и покажет форму входа
+             } catch (error) {
+                console.error("Logout Error:", error);
+                // Если не удалось выйти, показываем ошибку в чате
+                addSystemMessageToDOM(`❌ Ошибка выхода: ${error.message}`);
+             }
+        }
+
+
+        // --- Firestore Logic (unchanged) ---
 
         function getChannelPath(channelId) {
             // Путь для публичных данных: /artifacts/{appId}/public/data/messages_{channelId}
@@ -527,7 +759,7 @@
             });
         }
 
-        // --- DOM Manipulation ---
+        // --- DOM Manipulation (unchanged) ---
         
         // Helper: Добавление обычного сообщения в DOM
         function addMessageToDOM(username, text, time, isMine) {
@@ -537,8 +769,14 @@
             // Аватар (только для чужих сообщений)
             if (!isMine) {
                 const avatar = document.createElement('div');
-                avatar.className = `w-8 h-8 rounded-full bg-revent-active flex items-center justify-center font-bold text-sm text-revent-text/80 flex-shrink-0`;
-                avatar.textContent = username.charAt(0);
+                // Проверяем, является ли пользователь гостем для стилизации
+                const isGuest = username.startsWith('Гость-');
+                avatar.className = `w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${
+                    isGuest 
+                    ? 'bg-revent-active text-revent-text/80' 
+                    : 'bg-revent-accent text-black'
+                }`;
+                avatar.textContent = username.charAt(0).toUpperCase();
                 container.appendChild(avatar);
             }
 
@@ -584,8 +822,9 @@
             // Аватар (только для моих сообщений)
             if (isMine) {
                 const avatar = document.createElement('div');
+                 // Используем стили из аутентификации для собственного аватара
                 avatar.className = `w-8 h-8 rounded-full bg-revent-accent flex items-center justify-center font-bold text-sm text-black flex-shrink-0`;
-                avatar.textContent = username.charAt(0);
+                avatar.textContent = username.charAt(0).toUpperCase();
                 container.appendChild(avatar);
             }
             
@@ -611,7 +850,7 @@
 
         // --- Event Handlers (UI/Action) ---
 
-        // Переключение каналов
+        // Переключение каналов (unchanged)
         window.changeChannel = function(newChannelId, element) {
             if (newChannelId === currentChannel) return;
 
@@ -632,7 +871,7 @@
             listenForMessages(currentChannel);
         }
 
-        // Обработчик отправки формы
+        // Обработчик отправки формы (unchanged)
         MESSAGE_FORM.addEventListener('submit', async (e) => {
             e.preventDefault();
             const text = MESSAGE_INPUT.value.trim();
@@ -660,7 +899,7 @@
         });
 
 
-        // --- Gemini API Logic (LLM for text/summary) ---
+        // --- Gemini API Logic (LLM for text/summary, TTS - unchanged) ---
 
         /**
          * Generic function to make an authenticated Gemini API call with exponential backoff.
@@ -814,8 +1053,6 @@
             }
         }
         
-        // --- Gemini API Logic (TTS for Audio) ---
-
         /**
          * Calls the TTS API to generate audio from text.
          */
@@ -912,6 +1149,7 @@
                 }
             }
         }
+
 
         // --- Initialization ---
 
