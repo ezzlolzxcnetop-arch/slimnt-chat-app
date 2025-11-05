@@ -3,833 +3,403 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Revent Chat — Копия TG/Discord</title>
+    <title>Revent Chat — с Firebase и TTS</title>
     <!-- Подключение Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Подключение FontAwesome для иконок -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    
-    <!-- Конфигурация Tailwind для кастомной цветовой палитры Revent (Indigo/Cyan Theme) -->
     <script>
+        // Конфигурация Tailwind для кастомной цветовой палитры Revent
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        // Основной темный фон (глубокий индиго/уголь)
                         'revent-dark': '#1e1f29',
-                        // Фон боковой панели / чата (чуть светлее)
                         'revent-panel': '#282a36',
-                        // Основной акцентный цвет (кибер-синий/циан)
                         'revent-accent': '#00bfff', // Яркий циан
-                        // Вторичный акцент для активных элементов
                         'revent-active': '#4c5885',
-                        // Цвет текста
                         'revent-text': '#e0e0e0',
-                        // Цвет более тусклого текста/разделителей
                         'revent-subtle': '#8f9ba8',
-                        // Цвет для ошибок/предупреждений
-                        'revent-error': '#ff6347', // Коралловый для ошибок
+                        'revent-error': '#ff6347',
                     },
-                    boxShadow: {
-                        // Приглушенный "глоу"
-                        'glow': '0 0 10px rgba(0, 191, 255, 0.5), 0 0 20px rgba(0, 191, 255, 0.2)',
-                        'glow-sm': '0 0 5px rgba(0, 191, 255, 0.4)',
-                    }
-                }
-            }
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                },
+            },
         }
     </script>
     <style>
-        /* Общий стиль для скроллбара */
-        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #1e1f29; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4c5885; border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #00bfff; }
-
-        /* Приглушенный эффект свечения для интерактивных элементов */
-        .glow-effect {
-            transition: all 0.2s ease-in-out;
-        }
-        .glow-effect:hover {
-            box-shadow: 0 0 10px rgba(0, 191, 255, 0.6);
-            filter: brightness(1.1);
+        /* Стиль для прокручиваемого контейнера сообщений */
+        #messages-container {
+            height: calc(100vh - 12rem); /* Высота с учетом заголовка и поля ввода */
+            overflow-y: auto;
+            scroll-behavior: smooth;
+            padding-bottom: 1rem;
         }
 
-        /* --- Стили для Кнопки Отправки (Скриншот 1) --- */
-        #send-button-svg {
-            width: 40px; 
-            height: 40px; 
-            background-color: #00bfff; /* Цвет акцента */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s ease-in-out;
+        /* Стиль для скроллбара (только для эстетики) */
+        #messages-container::-webkit-scrollbar {
+            width: 8px;
         }
-        
-        /* Создаем форму стрелки (уголка) с помощью clip-path */
-        #send-button-svg {
-            clip-path: polygon(0% 0%, 100% 50%, 0% 100%, 0% 80%, 20% 50%, 0% 20%);
+        #messages-container::-webkit-scrollbar-thumb {
+            background-color: #4c5885;
+            border-radius: 4px;
         }
-
-        /* Чтобы иконка оставалась в центре, она должна быть абсолютной */
-        #send-button-svg i {
-            color: #1e1f29; /* Темный цвет для иконки */
-            position: relative;
-            left: 2px; /* Сдвигаем немного, чтобы компенсировать форму */
+        #messages-container::-webkit-scrollbar-track {
+            background-color: #1e1f29;
         }
-
-        /* Эффект при наведении на кнопку отправки */
-        #send-button:not([disabled]):hover #send-button-svg {
-            box-shadow: 0 0 15px rgba(0, 191, 255, 0.8);
-            transform: scale(1.05);
-            background-color: #33ccff;
-        }
-
-        /* Стили для скользящего меню (Скриншот 2) */
-        #sliding-menu {
-            transform: translateX(-100%);
-            transition: transform 0.3s ease-in-out;
-        }
-        #sliding-menu.open {
-            transform: translateX(0);
-        }
-
-        /* Эффект свечения при фокусе на поле ввода */
-        #message-input:focus {
-            box-shadow: 0 0 8px rgba(0, 191, 255, 0.8);
-            border-color: #00bfff !important;
-        }
-
-        /* Анимация при вводе текста (пульсация) */
-        @keyframes input-glow {
-            0% { box-shadow: 0 0 0px rgba(0, 191, 255, 0.0); }
-            50% { box-shadow: 0 0 5px rgba(0, 191, 255, 0.6); }
-            100% { box-shadow: 0 0 0px rgba(0, 191, 255, 0.0); }
-        }
-
-        .typing-glow {
-            animation: input-glow 1.5s infinite alternate;
-        }
-        
     </style>
 </head>
+<body class="bg-revent-dark text-revent-text font-sans antialiased">
 
-<body class="bg-revent-dark text-revent-text flex h-screen antialiased overflow-hidden">
+    <div class="flex flex-col h-screen max-w-4xl mx-auto">
+        <!-- Заголовок / Панель пользователя -->
+        <header class="p-4 bg-revent-panel shadow-lg rounded-b-xl flex justify-between items-center z-10">
+            <h1 class="text-xl font-bold text-revent-accent">Revent Chat <span class="text-sm text-revent-subtle">| Global</span></h1>
+            <div id="user-info" class="text-sm text-revent-text truncate max-w-[50%]">
+                <span class="inline-block bg-revent-active px-3 py-1 rounded-full text-xs font-mono">
+                    Loading User...
+                </span>
+            </div>
+        </header>
 
-    <!-- Оверлей для Аутентификации (Вход/Регистрация) -->
-    <div id="auth-overlay" class="fixed inset-0 bg-revent-dark bg-opacity-95 z-50 flex flex-col items-center justify-center hidden">
-        <div class="animate-pulse rounded-full h-12 w-12 border-t-2 border-b-2 border-revent-accent"></div>
-        <p class="mt-4 text-lg text-revent-accent">Инициализация системы...</p>
+        <!-- Контейнер для сообщений -->
+        <main id="messages-container" class="flex-grow p-4 space-y-4">
+            <!-- Сообщения будут добавлены сюда JavaScript'ом -->
+            <div id="system-message" class="text-center text-revent-subtle pt-8">
+                Соединение с Firebase...
+            </div>
+        </main>
 
-        <div id="auth-form-container" class="mt-8 p-8 bg-revent-panel rounded-2xl shadow-glow w-full max-w-md border border-revent-active">
-            <h3 class="text-revent-text text-3xl font-bold mb-6 text-center" id="auth-title">Вход</h3>
-            
-            <div id="error-message" class="text-revent-error text-center mb-4 p-3 border border-revent-error rounded-lg hidden"></div>
-
-            <!-- ИЗМЕНЕНО: Поле для логина -->
-            <input type="text" id="auth-login" placeholder="Логин (Admin: admin)" 
-                   class="p-4 w-full border border-revent-subtle bg-revent-dark text-revent-text rounded-lg transition duration-150 ease-in-out shadow-inner mb-4 focus:shadow-glow focus:border-revent-accent">
-            <input type="password" id="auth-password" placeholder="Пароль" 
-                   class="p-4 w-full border border-revent-subtle bg-revent-dark text-revent-text rounded-lg transition duration-150 ease-in-out shadow-inner mb-6 focus:shadow-glow focus:border-revent-accent">
-            
-            <button id="auth-submit" class="bg-revent-accent text-revent-dark p-4 rounded-lg w-full font-bold glow-effect text-lg">
-                Войти
-            </button>
-            
-            <!-- ВОЗВРАЩЕНА кнопка для переключения режима -->
-            <p class="text-center mt-4">
-                <button id="toggle-auth-mode" class="text-revent-accent hover:text-revent-text text-sm transition duration-150">
-                    Нет аккаунта? Зарегистрироваться
+        <!-- Форма ввода сообщения -->
+        <footer class="p-4 bg-revent-panel shadow-2xl rounded-t-xl sticky bottom-0 z-10">
+            <form id="message-form" class="flex gap-3">
+                <input type="text" id="message-input" placeholder="Введите ваше сообщение..." required
+                       class="flex-grow p-3 rounded-xl bg-revent-dark border border-revent-active focus:outline-none focus:ring-2 focus:ring-revent-accent text-revent-text placeholder-revent-subtle transition">
+                <button type="submit" id="send-button"
+                        class="bg-revent-accent text-revent-dark font-semibold py-3 px-5 rounded-xl hover:bg-opacity-90 transition duration-200 shadow-lg shadow-revent-accent/30 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l4.499-1.341c.823-.244 1.62-.485 2.5-1.124l5.65 3.39c.642.385 1.44-.061 1.44-.897V4.303a1 1 0 00-.772-.942l-9-3z" clip-rule="evenodd" fill-rule="evenodd"></path></svg>
                 </button>
-            </p>
-        </div>
-    </div>
-    
-    <!-- Скользящее Меню Профиля (Скриншот 2) -->
-    <div id="sliding-menu" class="fixed inset-y-0 left-0 w-72 bg-revent-panel z-40 p-6 border-r border-revent-accent/50 shadow-2xl overflow-y-auto">
-        <div class="flex justify-between items-center mb-6">
-            <h2 class="text-2xl font-bold text-revent-text"><i class="fas fa-microchip mr-2 text-revent-accent"></i> Профиль</h2>
-            <button id="close-menu-button" class="text-revent-subtle hover:text-revent-accent text-3xl transition duration-150">
-                &times;
-            </button>
-        </div>
-        <div id="profile-card" class="flex flex-col items-center bg-revent-dark p-6 rounded-2xl shadow-glow-sm border-2 border-revent-active">
-            <!-- Контент профиля будет здесь -->
-        </div>
-
-        <div class="mt-8 pt-4 border-t border-revent-active text-sm text-revent-subtle">
-            <p class="mb-1">Системная информация:</p>
-            <p class="mt-1">ID приложения: <span id="app-id" class="font-mono text-xs text-revent-accent break-all"></span></p>
-            <p class="mt-1">Роль: <span id="user-role" class="font-bold text-revent-text">Гость</span></p>
-        </div>
+            </form>
+        </footer>
     </div>
 
-
-    <div class="flex flex-row h-full w-full overflow-hidden">
-        
-        <!-- Панель Списка Чатов/Серверов (Слева, узкая) -->
-        <div id="chat-list-panel" class="flex flex-col w-20 sm:w-20 bg-revent-dark border-r border-revent-accent/30 p-2 shadow-xl">
-            <!-- Логотип/Декоративный Элемент -->
-            <div class="text-3xl font-extrabold text-revent-accent pt-2 pb-4 text-center">
-                <i class="fas fa-satellite-dish shadow-glow-sm"></i>
-            </div>
-            <!-- Список Чатов/Серверов (Только Админ) -->
-            <div id="chat-channel-list" class="flex flex-col space-y-3 mt-4 flex-1">
-                <!-- Канал 1: Административный Канал (По умолчанию) -->
-                <button class="bg-revent-accent/20 border border-revent-accent/80 text-revent-text p-3 rounded-xl glow-effect w-full h-16 flex items-center justify-center flex-col">
-                    <i class="fas fa-terminal text-2xl mb-1"></i>
-                    <span class="text-xs font-semibold">Система</span>
-                </button>
-            </div>
-        </div>
-
-        <!-- Основная Область Чата -->
-        <div class="flex-1 flex flex-col h-full bg-revent-panel">
-            
-            <!-- Заголовок Чата с Кнопками -->
-            <div class="bg-revent-dark border-b border-revent-accent/50 p-3 shadow-2xl flex items-center justify-between">
-                
-                <!-- Левая часть: Кнопка Профиля (Для открытия скользящего меню) -->
-                <button id="open-menu-button" class="text-revent-accent p-2 rounded-full transition duration-150 glow-effect bg-revent-panel shadow-glow-sm">
-                    <i class="fas fa-user-circle text-2xl"></i>
-                </button>
-                
-                <!-- Центр: Имя Канала -->
-                <div class="flex items-center space-x-3">
-                    <span class="text-lg font-bold text-revent-text">Системный Канал (Admin Chat)</span>
-                </div>
-
-                <!-- Правая часть: Кнопки Серверы / Добавить Друга -->
-                <div class="flex items-center space-x-3 relative">
-                    
-                    <!-- Кнопка "Добавить друга" (без функционала) -->
-                    <button class="text-revent-subtle hover:text-revent-accent p-2 rounded-full transition duration-150 glow-effect">
-                        <i class="fas fa-user-plus text-xl"></i>
-                    </button>
-                    
-                    <!-- Кнопка "Серверы" с выпадающим меню -->
-                    <div class="relative">
-                        <button id="server-dropdown-toggle" class="text-revent-accent p-2 rounded-full transition duration-150 glow-effect bg-revent-panel shadow-glow-sm">
-                            <i class="fas fa-server text-xl"></i>
-                        </button>
-                        <!-- Выпадающее меню -->
-                        <div id="server-dropdown" class="absolute right-0 mt-2 w-56 bg-revent-dark border border-revent-accent/50 rounded-lg shadow-glow p-2 hidden z-10">
-                            <button id="create-server-btn" class="w-full text-left p-3 rounded-lg text-revent-text hover:bg-revent-active transition duration-150">
-                                <i class="fas fa-plus-circle mr-2"></i> Создать Сервер
-                            </button>
-                            <button id="join-server-btn" class="w-full text-left p-3 rounded-lg text-revent-text hover:bg-revent-active transition duration-150">
-                                <i class="fas fa-link mr-2"></i> Присоединиться по ID
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Область Сообщений -->
-            <div id="messages-container" class="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
-                <!-- Сообщения будут загружены здесь -->
-                <div class="flex items-center justify-center h-full text-revent-subtle" id="initial-message">
-                    <i class="fas fa-spinner fa-spin mr-2"></i> Подключение к Системному Каналу...
-                </div>
-            </div>
-
-            <!-- Область Ввода Сообщения -->
-            <div class="bg-revent-dark p-4 border-t border-revent-accent/50 shadow-inner">
-                <div class="flex items-center space-x-3">
-                    <!-- Кнопка Загрузки Изображения -->
-                    <label for="image-upload" class="cursor-pointer text-revent-subtle hover:text-revent-accent transition duration-150 glow-effect p-3 rounded-xl bg-revent-panel shadow-md">
-                        <i class="fas fa-paperclip text-xl"></i>
-                        <input type="file" id="image-upload" accept="image/*" class="hidden">
-                    </label>
-
-                    <!-- Поле Ввода -->
-                    <!-- При вводе будет свечение (через :focus CSS) - анимация появления букв -->
-                    <input type="text" id="message-input" placeholder="Введите ваше сообщение..." 
-                           class="flex-1 p-3 border border-revent-active bg-revent-panel text-revent-text rounded-xl transition duration-300 ease-in-out shadow-inner"
-                           disabled>
-                    
-                    <!-- Кнопка Отправки (Скриншот 1) -->
-                    <button id="send-button" 
-                            class="transition duration-150 ease-in-out disabled:opacity-30 disabled:cursor-not-allowed"
-                            disabled>
-                        <div id="send-button-svg">
-                            <i class="fas fa-arrow-right text-lg"></i>
-                        </div>
-                    </button>
-                </div>
-                 <p id="auth-warning" class="text-revent-error text-center mt-2 hidden">
-                    Для отправки сообщений необходимо войти.
-                </p>
-            </div>
-        </div>
-    </div>
-
-    <!-- Модальное окно для ввода ID Сервера -->
-    <div id="server-id-modal" class="fixed inset-0 bg-revent-dark bg-opacity-90 z-50 flex items-center justify-center hidden">
-        <div class="bg-revent-panel rounded-2xl w-full max-w-sm p-8 shadow-glow border-2 border-revent-accent/50">
-            <h2 class="text-2xl font-bold text-revent-accent mb-6">Присоединиться к Серверу</h2>
-            <input type="text" id="server-id-input" placeholder="Введите ID Сервера" 
-                   class="p-3 w-full border border-revent-active bg-revent-dark text-revent-text rounded-lg transition duration-150 ease-in-out shadow-inner focus:shadow-glow">
-            <div class="flex justify-end space-x-4 mt-6">
-                <button id="cancel-join-server" class="bg-revent-subtle text-revent-dark p-3 rounded-lg font-bold glow-effect">
-                    Отмена
-                </button>
-                <button id="confirm-join-server" class="bg-revent-accent text-revent-dark p-3 rounded-lg font-bold glow-effect" disabled>
-                    Присоединиться
-                </button>
-            </div>
-        </div>
-    </div>
-
-
-    <!-- Модули Firebase и Логика Приложения -->
+    <!-- Firebase SDK и основной скрипт -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        // Добавлен createUserWithEmailAndPassword
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, onSnapshot, collection, query, orderBy, addDoc, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // setLogLevel('debug'); // Для отладки Firebase
-
-        // Глобальные переменные Firebase
+        // --- Глобальные переменные Canvas (ОБЯЗАТЕЛЬНО К ИСПОЛЬЗОВАНИЮ) ---
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         
-        // --- Конфигурация Логина/Администратора ---
-        const LOGIN_DOMAIN = '@revent.chat'; // Скрытый домен для работы Firebase
-        const ADMIN_LOGIN = 'admin';
-        const ADMIN_EMAIL = `${ADMIN_LOGIN}${LOGIN_DOMAIN}`; 
-        let ADMIN_UID = null; 
+        if (!firebaseConfig) {
+            console.error("Firebase config is missing. Cannot initialize Firebase.");
+            document.getElementById('system-message').textContent = '❌ Ошибка: Конфигурация Firebase отсутствует.';
+            return;
+        }
 
-        let app, db, auth;
-        let userId = null;
-        let messagesUnsubscribe = null;
-        let isCurrentUserAdmin = false;
-        let isSigningUp = false; // Состояние: true = Регистрация, false = Вход
+        // --- Инициализация Firebase ---
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        let currentUserId = null;
+        let authReady = false;
 
-        // Элементы DOM
+        // Включаем логирование для отладки
+        setLogLevel('Debug');
+
         const messagesContainer = document.getElementById('messages-container');
+        const messageForm = document.getElementById('message-form');
         const messageInput = document.getElementById('message-input');
+        const userInfoElement = document.getElementById('user-info');
         const sendButton = document.getElementById('send-button');
-        const imageUpload = document.getElementById('image-upload');
-        const profileCard = document.getElementById('profile-card');
-        const authOverlay = document.getElementById('auth-overlay');
-        const authTitle = document.getElementById('auth-title');
-        // Изменено на auth-login
-        const authLoginInput = document.getElementById('auth-login');
-        const authPasswordInput = document.getElementById('auth-password');
-        const authSubmitButton = document.getElementById('auth-submit');
-        const errorMessageDisplay = document.getElementById('error-message');
-        const userRoleDisplay = document.getElementById('user-role');
-        const slidingMenu = document.getElementById('sliding-menu');
-        const authWarning = document.getElementById('auth-warning');
-        const initialMessage = document.getElementById('initial-message');
-        const toggleAuthModeButton = document.getElementById('toggle-auth-mode'); // Новая кнопка
 
-        // --- Утилиты ---
-        
-        function displayCustomAlert(message) {
-            console.warn("Пользовательское уведомление:", message);
+        // --- Вспомогательные функции ---
+
+        // Конвертация PCM16 в WAV (НЕОБХОДИМА ДЛЯ TTS)
+        function base64ToArrayBuffer(base64) {
+            const binaryString = atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
         }
 
-        function toggleInputGlow(isTyping) {
-            if (isTyping) {
-                messageInput.classList.add('typing-glow');
-            } else {
-                messageInput.classList.remove('typing-glow');
+        function pcmToWav(pcm16, sampleRate) {
+            const numChannels = 1;
+            const bytesPerSample = 2;
+            const blockAlign = numChannels * bytesPerSample;
+            const byteRate = sampleRate * blockAlign;
+
+            const wavData = new ArrayBuffer(44 + pcm16.length * bytesPerSample);
+            const view = new DataView(wavData);
+
+            // RIFF chunk
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + pcm16.length * bytesPerSample, true);
+            writeString(view, 8, 'WAVE');
+            
+            // FMT chunk
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);          // Subchunk1Size (16 for PCM)
+            view.setUint16(20, 1, true);           // AudioFormat (1 for PCM)
+            view.setUint16(22, numChannels, true); // NumChannels
+            view.setUint32(24, sampleRate, true);  // SampleRate
+            view.setUint32(28, byteRate, true);    // ByteRate
+            view.setUint16(32, blockAlign, true);  // BlockAlign
+            view.setUint16(34, 16, true);          // BitsPerSample
+
+            // DATA chunk
+            writeString(view, 36, 'data');
+            view.setUint32(40, pcm16.length * bytesPerSample, true);
+
+            // Write PCM data
+            let offset = 44;
+            for (let i = 0; i < pcm16.length; i++) {
+                view.setInt16(offset, pcm16[i], true);
+                offset += 2;
+            }
+
+            return new Blob([wavData], { type: 'audio/wav' });
+
+            function writeString(view, offset, string) {
+                for (let i = 0; i < string.length; i++) {
+                    view.setUint8(offset + i, string.charCodeAt(i));
+                }
             }
         }
-        
-        // Helper: Преобразует Логин в Email для Firebase
-        function getAuthEmail(login) {
-            // Проверяем, если пользователь ввел логин Админа, используем полный email
-            if (login === ADMIN_LOGIN) {
-                return ADMIN_EMAIL;
-            }
-            // Иначе, добавляем наш скрытый домен
-            return login.includes('@') ? login : `${login}${LOGIN_DOMAIN}`;
-        }
-        
-        // Helper: Преобразует Email в Логин для отображения
-        function getAuthLogin(email) {
-            if (!email) return 'N/A';
-            return email.split(LOGIN_DOMAIN)[0] || email;
-        }
 
-        // --- Функция для выхода из профиля ---
-        async function handleLogout() {
-            if (!auth) return;
+        // Обработка TTS (Text-to-Speech)
+        async function playTTS(text, button) {
+            button.disabled = true;
+            button.innerHTML = `<svg class="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+
+            const ttsEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=`;
+            const payload = {
+                contents: [{ parts: [{ text: text }] }],
+                generationConfig: {
+                    responseModalities: ["AUDIO"],
+                    speechConfig: {
+                        voiceConfig: {
+                            prebuiltVoiceConfig: { voiceName: "Kore" } // Выбираем голос
+                        }
+                    }
+                },
+                model: "gemini-2.5-flash-preview-tts"
+            };
+
             try {
-                if (auth.currentUser.isAnonymous) {
-                     await signInAnonymously(auth); 
+                const response = await fetch(ttsEndpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const part = result?.candidates?.[0]?.content?.parts?.[0];
+                const audioData = part?.inlineData?.data;
+                const mimeType = part?.inlineData?.mimeType;
+
+                if (audioData && mimeType && mimeType.startsWith("audio/")) {
+                    const sampleRateMatch = mimeType.match(/rate=(\d+)/);
+                    const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 16000;
+                    
+                    const pcmData = base64ToArrayBuffer(audioData);
+                    const pcm16 = new Int16Array(pcmData);
+                    const wavBlob = pcmToWav(pcm16, sampleRate);
+                    const audioUrl = URL.createObjectURL(wavBlob);
+
+                    const audio = new Audio(audioUrl);
+                    
+                    audio.onended = () => {
+                        // Восстанавливаем кнопку после окончания проигрывания
+                        button.innerHTML = `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.414 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.414l3.879-3.879a1 1 0 011.09-.045zM14.075 4.097a1 1 0 011.042 1.63L13.25 7.967A1 1 0 0113.25 12.033L15.117 14.27a1 1 0 01-1.042 1.63l-2.032-2.427A8.995 8.995 0 0110 16V4c.536 0 1.054.088 1.554.254l2.031-1.298a1 1 0 01.488-.119z" clip-rule="evenodd"></path></svg>`;
+                        button.disabled = false;
+                    };
+                    audio.play();
                 } else {
-                    await signOut(auth);
+                    console.error("Не удалось сгенерировать аудио.");
+                    alertMessage("❌ Не удалось сгенерировать аудио.", 'error');
                 }
-                authOverlay.classList.remove('hidden');
-            } catch (e) {
-                console.error("Ошибка при выходе из системы:", e);
-                displayCustomAlert("Не удалось выйти из системы. Проверьте консоль.");
+            } catch (error) {
+                console.error("TTS Playback Error:", error);
+                alertMessage("❌ Ошибка TTS. См. консоль.", 'error');
+            } finally {
+                // Восстанавливаем кнопку, если произошла ошибка до onended
+                if (button.disabled && !button.innerHTML.includes('animate-spin')) {
+                     button.innerHTML = `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.414 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.414l3.879-3.879a1 1 0 011.09-.045zM14.075 4.097a1 1 0 011.042 1.63L13.25 7.967A1 1 0 0113.25 12.033L15.117 14.27a1 1 0 01-1.042 1.63l-2.032-2.427A8.995 8.995 0 0110 16V4c.536 0 1.054.088 1.554.254l2.031-1.298a1 1 0 01.488-.119z" clip-rule="evenodd" fill-rule="evenodd"></path></svg>`;
+                     button.disabled = false;
+                }
             }
         }
 
-        // Рендеринг карточки профиля
-        function renderProfile(uid, email) {
-            const displayId = uid || 'N/A';
-            const displayLogin = getAuthLogin(email);
-            
-            isCurrentUserAdmin = (uid && email === ADMIN_EMAIL);
-            const roleText = isCurrentUserAdmin ? 'Администратор' : 'Пользователь';
-            userRoleDisplay.textContent = roleText;
+        function createMessageElement(message) {
+            const isSelf = message.userId === currentUserId;
+            const messageWrapper = document.createElement('div');
+            messageWrapper.className = `flex ${isSelf ? 'justify-end' : 'justify-start'}`;
 
-            const iconColorClass = isCurrentUserAdmin ? 'text-revent-error' : 'text-revent-accent';
+            const messageBox = document.createElement('div');
+            messageBox.className = `max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-2xl shadow-md flex flex-col ${isSelf ? 'bg-revent-accent text-revent-dark rounded-br-none' : 'bg-revent-panel text-revent-text rounded-tl-none'}`;
 
-            const profileHTML = `
-                <div class="mb-4">
-                    <i class="fas fa-user-circle text-7xl ${iconColorClass} shadow-glow-sm"></i>
-                </div>
-                <h3 class="text-lg font-bold text-revent-text">${roleText}:</h3>
-                <p class="font-mono text-sm break-all bg-revent-active/50 p-2 rounded-lg mt-2 select-text shadow-glow-sm text-revent-text">
-                    ${displayLogin}
-                </p>
-                <p class="text-xs text-revent-subtle mt-1 mb-6 break-all">
-                    ID: ${displayId}
-                </p>
-                <!-- Кнопка Выход из Профиля -->
-                <button id="logout-button" 
-                    class="w-full bg-revent-active text-revent-text p-3 rounded-xl shadow-lg hover:bg-revent-error transition duration-150 flex items-center justify-center space-x-2 font-semibold glow-effect">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span>Выход</span>
-                </button>
-            `;
-            profileCard.innerHTML = profileHTML;
-            
-            document.getElementById('logout-button')?.addEventListener('click', handleLogout);
+            // Никнейм/ID (только для чужих сообщений)
+            if (!isSelf) {
+                const userIdDisplay = document.createElement('span');
+                userIdDisplay.className = 'text-xs font-semibold mb-1 text-revent-accent break-all';
+                userIdDisplay.textContent = message.userId;
+                messageBox.appendChild(userIdDisplay);
+            }
+
+            // Текст сообщения
+            const messageText = document.createElement('p');
+            messageText.className = 'text-sm break-words';
+            messageText.textContent = message.text;
+            messageBox.appendChild(messageText);
+
+            // Время
+            const timestamp = document.createElement('span');
+            timestamp.className = `text-xs mt-1 ${isSelf ? 'text-revent-dark opacity-80' : 'text-revent-subtle'}`;
+            const date = message.timestamp ? message.timestamp.toDate() : new Date();
+            timestamp.textContent = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+            messageBox.appendChild(timestamp);
+
+            // Кнопка TTS
+            const ttsButton = document.createElement('button');
+            ttsButton.type = 'button';
+            ttsButton.className = `absolute -top-3 ${isSelf ? '-left-8' : '-right-8'} p-1 rounded-full bg-revent-active/70 hover:bg-revent-active transition text-revent-text focus:outline-none shadow-lg`;
+            ttsButton.innerHTML = `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.414 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.414l3.879-3.879a1 1 0 011.09-.045zM14.075 4.097a1 1 0 011.042 1.63L13.25 7.967A1 1 0 0113.25 12.033L15.117 14.27a1 1 0 01-1.042 1.63l-2.032-2.427A8.995 8.995 0 0110 16V4c.536 0 1.054.088 1.554.254l2.031-1.298a1 1 0 01.488-.119z" clip-rule="evenodd" fill-rule="evenodd"></path></svg>`;
+            ttsButton.addEventListener('click', () => playTTS(message.text, ttsButton));
+
+            const relativeContainer = document.createElement('div');
+            relativeContainer.className = 'relative';
+            relativeContainer.appendChild(messageBox);
+            relativeContainer.appendChild(ttsButton);
+
+            messageWrapper.appendChild(relativeContainer);
+            return messageWrapper;
         }
 
-        // Рендеринг сообщений (логика не изменена)
-        function renderMessages(messages) {
-            messagesContainer.innerHTML = '';
-            if (initialMessage) {
-                initialMessage.remove(); 
-            }
-
-            if (messages.length === 0) {
-                messagesContainer.innerHTML = `
-                    <div class="text-center text-revent-subtle mt-20">
-                        <i class="fas fa-terminal text-5xl mb-4 text-revent-active"></i>
-                        <p class="text-lg font-semibold">Начало Системного Канала</p>
-                        <p class="text-sm">Только Администратор может писать в этот чат (помечен красным). Вы можете только читать.</p>
-                    </div>
-                `;
-                return;
-            }
-
-            messages.forEach(msg => {
-                const isSystemAdmin = msg.userId === ADMIN_UID;
-                const isCurrentUser = msg.userId === userId;
-                
-                // Отображаем логин вместо email
-                const senderLogin = msg.userEmail ? getAuthLogin(msg.userEmail) : 'Гость';
-                
-                const senderName = isSystemAdmin ? 'Система (Admin)' : 
-                                   (isCurrentUser ? 'Вы' : senderLogin);
-
-                const alignment = isCurrentUser ? 'justify-end' : 'justify-start';
-                
-                const isAccent = isSystemAdmin;
-                const bgColor = isAccent ? 'bg-revent-error' : 'bg-revent-active';
-                const textColor = isAccent ? 'text-revent-dark' : 'text-revent-text';
-                
-                const bubbleClass = isCurrentUser ? 'rounded-bl-xl' : 'rounded-br-xl';
-                const shadowClass = isAccent ? 'shadow-lg shadow-revent-error/50' : 'shadow-md shadow-revent-dark/50 border border-revent-subtle/50';
-
-                let contentHTML = '';
-                if (msg.image) {
-                    contentHTML = `
-                        <a href="${msg.image}" target="_blank" class="block">
-                            <img src="${msg.image}" alt="Загруженное изображение" 
-                                 class="max-w-xs md:max-w-sm w-full h-auto rounded-lg mb-2 shadow-inner border border-revent-subtle object-cover transition transform hover:scale-[1.01] duration-300" 
-                                 style="max-height: 250px;">
-                        </a>
-                    `;
-                }
-
-                if (msg.text) {
-                    contentHTML += `<p class="whitespace-pre-wrap">${msg.text}</p>`;
-                }
-                
-                let timeStr = 'Неизвестно';
-                if (msg.timestamp && msg.timestamp.seconds) {
-                    const date = new Date(msg.timestamp.seconds * 1000);
-                    timeStr = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-                }
-
-                const messageHTML = `
-                    <div class="flex ${alignment}">
-                        <div class="flex flex-col ${isCurrentUser ? 'items-end' : 'items-start'} max-w-xs md:max-w-md lg:max-w-lg">
-                            <div class="text-xs ${isCurrentUser ? 'text-revent-subtle' : 'text-revent-subtle'} mb-1 px-1">
-                                ${senderName}
-                            </div>
-                            <div class="p-4 ${bgColor} ${textColor} rounded-t-xl ${bubbleClass} ${shadowClass} transition duration-300 ease-in-out break-words">
-                                ${contentHTML}
-                            </div>
-                            <span class="text-xs text-revent-subtle mt-1">${timeStr}</span>
-                        </div>
-                    </div>
-                `;
-                messagesContainer.innerHTML += messageHTML;
-            });
-
+        function scrollToBottom() {
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
-        // Отправка сообщения (логика не изменена)
-        async function sendMessage(text = null, imageBase64 = null) {
-            if (!db || !userId) return;
+        // --- Аутентификация и Наблюдение за Базой Данных ---
 
-            const trimmedText = text ? text.trim() : '';
-            if (!trimmedText && !imageBase64) return;
-            
-            if (!isCurrentUserAdmin) {
-                displayCustomAlert("Только Администратор может писать в этот канал.");
-                messageInput.value = '';
-                return;
-            }
-
-            const collectionPath = `artifacts/${appId}/public/data/admin_chat`; 
-
-            try {
-                if (imageBase64) {
-                    // ... (логика Base64 пропущена для краткости)
-                }
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                // Пользователь аутентифицирован
+                currentUserId = user.uid;
+                userInfoElement.innerHTML = `<span class="inline-block bg-revent-active px-3 py-1 rounded-full text-xs font-mono" title="Ваш ID пользователя">${currentUserId}</span>`;
+                sendButton.disabled = false;
+                messageInput.disabled = false;
+                authReady = true;
+                document.getElementById('system-message').remove(); // Убираем сообщение о загрузке
                 
-                const newMessage = {
-                    userId: userId,
-                    userEmail: auth.currentUser.email || 'anonymous',
-                    timestamp: serverTimestamp(),
-                };
-                
-                if (trimmedText) {
-                    newMessage.text = trimmedText;
-                }
-                if (imageBase64) {
-                    newMessage.image = imageBase64;
-                }
+                // Начинаем слушать сообщения
+                setupMessageListener();
 
-                await addDoc(collection(db, collectionPath), newMessage);
-
-                messageInput.value = '';
-            } catch (error) {
-                console.error("Ошибка при отправке сообщения: ", error);
-                displayCustomAlert("Ошибка при отправке сообщения. См. консоль.");
-            }
-        }
-
-        // Обработчик загрузки изображения (логика не изменена)
-        async function handleImageUpload(event) {
-            if (!isCurrentUserAdmin) {
-                displayCustomAlert("Только Администратор может загружать изображения в этот канал.");
-                imageUpload.value = '';
-                return;
-            }
-            
-            const file = event.target.files[0];
-            if (!file) return;
-
-            if (file.size > 5 * 1024 * 1024) {
-                displayCustomAlert("Файл слишком большой. Максимальный размер 5MB.");
-                imageUpload.value = '';
-                return;
-            }
-
-            try {
-                messageInput.placeholder = "Загрузка изображения...";
-                
-                const base64Data = await fileToBase64(file);
-                await sendMessage(null, base64Data);
-                imageUpload.value = '';
-            } catch (error) {
-                console.error("Ошибка при обработке изображения:", error);
-                displayCustomAlert("Не удалось загрузить изображение. Проверьте консоль для деталей.");
-            } finally {
-                 messageInput.placeholder = "Введите ваше сообщение...";
-            }
-        }
-        
-        // Преобразование File в Base64 (логика не изменена)
-        function fileToBase64(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = error => reject(error);
-                reader.readAsDataURL(file);
-            });
-        }
-
-
-        // Прослушивание сообщений в реальном времени (логика не изменена)
-        function listenForMessages() {
-            if (messagesUnsubscribe) {
-                messagesUnsubscribe(); 
-            }
-            
-            const collectionPath = `artifacts/${appId}/public/data/admin_chat`;
-            const q = query(collection(db, collectionPath), orderBy('timestamp', 'asc'));
-
-            messagesUnsubscribe = onSnapshot(q, (snapshot) => {
-                const messages = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data(),
-                    timestamp: doc.data().timestamp || { seconds: Date.now() / 1000 }
-                }));
-                renderMessages(messages);
-            }, (error) => {
-                console.error("Ошибка прослушивания сообщений:", error);
-                messagesContainer.innerHTML = `<div class="text-center text-revent-error mt-20">❌ Ошибка загрузки чата. ${error.message}</div>`;
-            });
-        }
-        
-        // --- Логика Переключения Режима Аутентификации ---
-        function toggleAuthMode() {
-            isSigningUp = !isSigningUp;
-            errorMessageDisplay.classList.add('hidden'); // Скрываем ошибки при переключении
-            
-            if (isSigningUp) {
-                authTitle.textContent = "Регистрация";
-                authSubmitButton.textContent = "Создать аккаунт";
-                toggleAuthModeButton.textContent = "Уже есть аккаунт? Войти";
-                authLoginInput.placeholder = "Логин (необходимо не менее 6 символов)";
             } else {
-                authTitle.textContent = "Вход";
-                authSubmitButton.textContent = "Войти";
-                toggleAuthModeButton.textContent = "Нет аккаунта? Зарегистрироваться";
-                authLoginInput.placeholder = "Логин (Admin: admin)";
-            }
-        }
-
-        // --- Логика Аутентификации ---
-        async function handleAuthSubmit() {
-            const login = authLoginInput.value.trim();
-            const password = authPasswordInput.value.trim();
-            const email = getAuthEmail(login); // Получаем email для Firebase
-            errorMessageDisplay.classList.add('hidden');
-            
-            if (!login || !password) {
-                errorMessageDisplay.textContent = "Введите логин и пароль.";
-                errorMessageDisplay.classList.remove('hidden');
-                return;
-            }
-            
-            // Проверка длины логина
-            if (login.length < 3) {
-                errorMessageDisplay.textContent = "Логин должен содержать не менее 3 символов.";
-                errorMessageDisplay.classList.remove('hidden');
-                return;
-            }
-
-            try {
-                if (isSigningUp) {
-                    // Режим Регистрации
-                    if (password.length < 6) {
-                         errorMessageDisplay.textContent = "Пароль должен содержать не менее 6 символов.";
-                         errorMessageDisplay.classList.remove('hidden');
-                         return;
-                    }
-                    await createUserWithEmailAndPassword(auth, email, password);
-                    
-                } else {
-                    // Режим Входа
-                    await signInWithEmailAndPassword(auth, email, password);
-                }
-                
-                // В случае успеха onAuthStateChanged обработает дальнейшее
-
-            } catch (error) {
-                console.error(`Ошибка ${isSigningUp ? 'Регистрации' : 'Входа'}:`, error);
-                let message = "Произошла неизвестная ошибка. Проверьте консоль.";
-                
-                if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-                    message = "Неверный логин или пароль.";
-                } else if (error.code === 'auth/email-already-in-use') {
-                    message = "Этот логин уже занят. Попробуйте другой или войдите.";
-                } else if (error.code === 'auth/weak-password') {
-                    message = "Пароль слишком слабый. Он должен содержать не менее 6 символов.";
-                } else {
-                    message = `Ошибка: ${error.message} (Код: ${error.code}).`;
-                }
-                
-                errorMessageDisplay.textContent = message;
-                errorMessageDisplay.classList.remove('hidden');
-            }
-        }
-
-        // Инициализация Firebase и Аутентификация
-        async function initializeAppAndAuth() {
-            try {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                
-                document.getElementById('app-id').textContent = appId;
-
-                // 1. Инициализируем анонимно для получения ADMIN_UID (если не залогинен)
-                if (!auth.currentUser || !auth.currentUser.isAnonymous) {
-                    await signInAnonymously(auth); 
-                }
-
-                // 2. Устанавливаем слушатель для onAuthStateChanged
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        
-                        // Если пользователь вошел как Админ, устанавливаем его UID как ADMIN_UID
-                        if (user.email === ADMIN_EMAIL) {
-                             ADMIN_UID = user.uid;
-                             console.log(`Администраторский UID установлен: ${ADMIN_UID}`);
-                        }
-
-                        isCurrentUserAdmin = (userId === ADMIN_UID);
-                        
-                        if (user.isAnonymous) {
-                            // Анонимный пользователь, показываем форму для входа
-                            authOverlay.classList.remove('hidden');
-                            messageInput.disabled = true;
-                            sendButton.disabled = true;
-                            authWarning.classList.remove('hidden');
-                            renderProfile(null, 'Не аутентифицирован');
-                            
-                        } else {
-                            // Аутентифицированный пользователь
-                            authOverlay.classList.add('hidden');
-                            messageInput.disabled = false;
-                            sendButton.disabled = !messageInput.value.trim() || !isCurrentUserAdmin; 
-                            authWarning.classList.add('hidden');
-                            renderProfile(userId, user.email);
-                        }
-                        
-                        listenForMessages();
-
+                // Пользователь не аутентифицирован, пробуем вход
+                try {
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
                     } else {
-                        // Пользователь вышел
-                        userId = null;
-                        messageInput.disabled = true;
-                        sendButton.disabled = true;
-                        authWarning.classList.remove('hidden');
-                        renderProfile(null, 'Не аутентифицирован');
-                        
-                        authOverlay.classList.remove('hidden'); 
+                        await signInAnonymously(auth);
+                        currentUserId = auth.currentUser.uid;
+                        alertMessage("⚠️ Вход выполнен анонимно. Данные могут быть недоступны другим пользователям.", 'warning');
                     }
+                } catch (error) {
+                    console.error("Firebase Auth Error:", error);
+                    alertMessage("❌ Ошибка аутентификации. Чат не будет работать.", 'error');
+                    sendButton.disabled = true;
+                    messageInput.disabled = true;
+                }
+            }
+        });
+
+        // Основная функция для подписки на сообщения
+        function setupMessageListener() {
+            // Путь к коллекции: /artifacts/{appId}/public/data/messages
+            const path = `artifacts/${appId}/public/data/messages`;
+            const messagesCollection = collection(db, path);
+
+            // Создаем запрос: все сообщения, отсортированные по времени
+            // ВАЖНО: избегаем .orderBy() в запросе, сортируем на клиенте для совместимости с Canvas
+            const q = query(messagesCollection); 
+
+            onSnapshot(q, (snapshot) => {
+                const newMessages = [];
+                snapshot.forEach(doc => {
+                    newMessages.push({ id: doc.id, ...doc.data() });
+                });
+                
+                // Сортируем на стороне клиента по полю timestamp (если есть) или по дате
+                newMessages.sort((a, b) => {
+                    const timeA = a.timestamp ? a.timestamp.toMillis() : 0;
+                    const timeB = b.timestamp ? b.timestamp.toMillis() : 0;
+                    return timeA - timeB;
                 });
 
+                messagesContainer.innerHTML = ''; // Очистка перед добавлением
+                newMessages.forEach(msg => {
+                    messagesContainer.appendChild(createMessageElement(msg));
+                });
+
+                scrollToBottom();
+            }, (error) => {
+                console.error("Ошибка при получении данных Firestore:", error);
+                alertMessage("❌ Не удалось загрузить сообщения.", 'error');
+            });
+        }
+
+        // --- Отправка сообщения ---
+        messageForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = messageInput.value.trim();
+
+            if (text === '' || !authReady || !currentUserId) return;
+
+            try {
+                const path = `artifacts/${appId}/public/data/messages`;
+                await addDoc(collection(db, path), {
+                    userId: currentUserId,
+                    text: text,
+                    timestamp: serverTimestamp() // Используем серверное время
+                });
+                messageInput.value = ''; // Очищаем поле ввода
             } catch (error) {
-                console.error("Ошибка инициализации Firebase:", error);
-                messagesContainer.innerHTML = `<div class="text-center text-revent-error mt-20">🔥 Критическая ошибка: Не удалось подключиться к Firebase. См. консоль.</div>`;
-                authOverlay.classList.remove('hidden');
-            }
-        }
-
-        // --- Обработчики событий ---
-
-        function handleInput() {
-            toggleInputGlow(messageInput.value.length > 0);
-            // Кнопка отправки активна, только если есть текст И пользователь - Админ
-            sendButton.disabled = !messageInput.value.trim() || !isCurrentUserAdmin; 
-        }
-
-        function handleSend(event) {
-            event.preventDefault();
-            if (isCurrentUserAdmin) {
-                sendMessage(messageInput.value);
-                messageInput.focus(); 
-            } else {
-                displayCustomAlert("Только Администратор может писать в этот канал.");
-            }
-        }
-        
-        // Логика для скользящего меню
-        document.getElementById('open-menu-button').addEventListener('click', () => {
-            slidingMenu.classList.add('open');
-        });
-
-        document.getElementById('close-menu-button').addEventListener('click', () => {
-            slidingMenu.classList.remove('open');
-        });
-        
-        // Логика для выпадающего меню Серверов (Server Dropdown)
-        const serverDropdownToggle = document.getElementById('server-dropdown-toggle');
-        const serverDropdown = document.getElementById('server-dropdown');
-        serverDropdownToggle.addEventListener('click', () => {
-            serverDropdown.classList.toggle('hidden');
-        });
-        document.addEventListener('click', (event) => {
-            if (!serverDropdownToggle.contains(event.target) && !serverDropdown.contains(event.target)) {
-                serverDropdown.classList.add('hidden');
+                console.error("Ошибка при отправке сообщения:", error);
+                alertMessage("❌ Не удалось отправить сообщение.", 'error');
             }
         });
-        
-        // Логика для модального окна Присоединения к Серверу
-        const serverIdModal = document.getElementById('server-id-modal');
-        const serverIdInput = document.getElementById('server-id-input');
-        const confirmJoinServer = document.getElementById('confirm-join-server');
 
-        document.getElementById('join-server-btn').addEventListener('click', () => {
-            serverDropdown.classList.add('hidden');
-            serverIdModal.classList.remove('hidden');
-        });
-
-        document.getElementById('cancel-join-server').addEventListener('click', () => {
-            serverIdModal.classList.add('hidden');
-        });
-        
-        // Логика для кнопки Создать Сервер (Placeholder)
-        document.getElementById('create-server-btn').addEventListener('click', () => {
-            serverDropdown.classList.add('hidden');
-            displayCustomAlert("Создание сервера: Не реализовано в этой версии.");
-        });
-
-        serverIdInput.addEventListener('input', () => {
-            confirmJoinServer.disabled = !serverIdInput.value.trim();
-        });
-
-        confirmJoinServer.addEventListener('click', () => {
-            const serverId = serverIdInput.value.trim();
-            if (serverId) {
-                displayCustomAlert(`Попытка присоединиться к серверу: ${serverId}. Функция пока не реализована.`);
-                serverIdModal.classList.add('hidden');
-                serverIdInput.value = '';
-            }
-        });
-        
-        // Добавление обработчика для переключения режимов
-        toggleAuthModeButton.addEventListener('click', toggleAuthMode);
-
-
-        // Запуск приложения
-        window.onload = function() {
-            initializeAppAndAuth();
+        // --- Временный модальный/системный алерт (вместо alert()) ---
+        function alertMessage(message, type = 'info') {
+            const id = 'alert-' + Date.now();
+            const colorMap = {
+                'info': 'bg-blue-900 border-blue-600',
+                'warning': 'bg-yellow-900 border-yellow-600',
+                'error': 'bg-red-900 border-red-600',
+            };
             
-            messageInput.addEventListener('input', handleInput);
-            sendButton.addEventListener('click', handleSend);
-            
-            // Вход/Регистрация по нажатию Enter
-            authLoginInput.addEventListener('keypress', (e) => {
-                 if (e.key === 'Enter') handleAuthSubmit();
-            });
-            authPasswordInput.addEventListener('keypress', (e) => {
-                 if (e.key === 'Enter') handleAuthSubmit();
-            });
+            const alertHtml = `
+                <div id="${id}" class="fixed top-4 right-4 max-w-sm p-4 rounded-xl border-l-4 shadow-lg z-50 transition-opacity duration-300 ${colorMap[type]}" role="alert">
+                    <p class="text-sm font-medium text-revent-text">${message}</p>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', alertHtml);
 
-            authSubmitButton.addEventListener('click', handleAuthSubmit);
-            
-            messageInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter' && !sendButton.disabled) {
-                    handleSend(e);
-                }
-            });
-
-            imageUpload.addEventListener('change', handleImageUpload);
+            // Автоматическое удаление через 5 секунд
+            setTimeout(() => {
+                const element = document.getElementById(id);
+                if (element) element.remove();
+            }, 5000);
         }
+
     </script>
+
 </body>
 </html>
