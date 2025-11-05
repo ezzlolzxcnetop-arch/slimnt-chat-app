@@ -3,124 +3,430 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Revent Chat — с Firebase и TTS</title>
-    <!-- Подключение Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        // Конфигурация Tailwind для кастомной цветовой палитры Revent
+    <title>Revent Chat — Копия TG/Discord</title>
+    <!-- Подключение Tailwind CSS --><script src="https://cdn.tailwindcss.com"></script>
+    <!-- Конфигурация Tailwind для кастомной цветовой палитры Revent --><script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
+                        // Основной темный фон (глубокий индиго/уголь)
                         'revent-dark': '#1e1f29',
+                        // Фон боковой панели / чата (чуть светлее)
                         'revent-panel': '#282a36',
+                        // Основной акцентный цвет (кибер-синий/циан)
                         'revent-accent': '#00bfff', // Яркий циан
+                        // Вторичный акцент для активных элементов
                         'revent-active': '#4c5885',
+                        // Цвет текста
                         'revent-text': '#e0e0e0',
+                        // Цвет более тусклого текста/разделителей
                         'revent-subtle': '#8f9ba8',
-                        'revent-error': '#ff6347',
+                        // Цвет для ошибок/предупреждений
+                        'revent-error': '#ff6347', 
                     },
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
-                    },
+                    }
                 },
-            },
+            }
         }
     </script>
     <style>
-        /* Стиль для прокручиваемого контейнера сообщений */
-        #messages-container {
-            height: calc(100vh - 12rem); /* Высота с учетом заголовка и поля ввода */
-            overflow-y: auto;
-            scroll-behavior: smooth;
-            padding-bottom: 1rem;
-        }
-
-        /* Стиль для скроллбара (только для эстетики) */
-        #messages-container::-webkit-scrollbar {
+        /* Стиль для полосы прокрутки, соответствующий темной теме */
+        .custom-scroll::-webkit-scrollbar {
             width: 8px;
         }
-        #messages-container::-webkit-scrollbar-thumb {
-            background-color: #4c5885;
-            border-radius: 4px;
+        .custom-scroll::-webkit-scrollbar-track {
+            background: transparent;
         }
-        #messages-container::-webkit-scrollbar-track {
-            background-color: #1e1f29;
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background-color: #4c5885;
+            border-radius: 20px;
+            border: 2px solid #282a36;
+        }
+
+        /* Стиль для анимации чат-пузырей */
+        .message-bubble {
+            transition: opacity 0.2s;
+        }
+        .message-bubble:hover {
+            opacity: 0.95;
+        }
+
+        /* Убедимся, что приложение занимает всю высоту */
+        html, body, #app {
+            height: 100%;
+        }
+
+        /* Стили для particles.js контейнера */
+        #particles-js {
+            position: fixed; /* Закрепляем фон */
+            width: 100%;
+            height: 100%;
+            background-color: '#1e1f29'; /* Фоновый цвет для particles.js */
+            background-image: url('');
+            background-repeat: no-repeat;
+            background-size: cover;
+            background-position: 50% 50%;
+            z-index: 0; /* Убеждаемся, что фон находится позади */
+        }
+
+        /* Контейнер для основного содержимого чата, чтобы он был поверх particles.js */
+        #app-content {
+            position: relative; /* Чтобы z-index работал */
+            z-index: 1; /* Поверх частиц */
+            height: 100%;
+            display: flex; /* Наследование flex от родителя #app */
+            flex-direction: column; /* Если это основной контейнер */
         }
     </style>
 </head>
-<body class="bg-revent-dark text-revent-text font-sans antialiased">
+<body class="bg-revent-dark font-sans text-revent-text h-screen overflow-hidden">
 
-    <div class="flex flex-col h-screen max-w-4xl mx-auto">
-        <!-- Заголовок / Панель пользователя -->
-        <header class="p-4 bg-revent-panel shadow-lg rounded-b-xl flex justify-between items-center z-10">
-            <h1 class="text-xl font-bold text-revent-accent">Revent Chat <span class="text-sm text-revent-subtle">| Global</span></h1>
-            <div id="user-info" class="text-sm text-revent-text truncate max-w-[50%]">
-                <span class="inline-block bg-revent-active px-3 py-1 rounded-full text-xs font-mono">
-                    Loading User...
-                </span>
+    <!-- Контейнер для particles.js фона --><div id="particles-js"></div>
+
+    <!-- Общий контейнер для всего содержимого чата, который будет поверх particles.js --><div id="app-content" class="h-full flex">
+
+        <!-- ЭКРАН АУТЕНТИФИКАЦИИ / ЗАГРУЗКИ (ВИДЕН СНАЧАЛА) --><div id="auth-view" class="h-full w-full absolute top-0 left-0 flex items-center justify-center bg-revent-dark/90 z-20">
+            
+            <!-- Форма Входа / Регистрации --><div id="auth-card" class="bg-revent-panel p-8 rounded-xl shadow-2xl w-full max-w-sm transform transition duration-500 ease-in-out scale-100">
+                <h2 id="auth-title" class="text-2xl font-bold text-center mb-6 text-revent-accent">Вход в Revent Chat</h2>
+                
+                <form id="auth-form">
+                    <div class="mb-4">
+                        <label for="auth-email" class="block text-sm font-medium text-revent-subtle mb-1">Email</label>
+                        <input type="email" id="auth-email" name="email" required placeholder="name@example.com"
+                               class="w-full p-3 rounded-lg bg-revent-active/30 text-revent-text placeholder-revent-subtle focus:outline-none focus:ring-2 focus:ring-revent-accent border border-transparent focus:border-revent-accent/50">
+                    </div>
+                    <div class="mb-6">
+                        <label for="auth-password" class="block text-sm font-medium text-revent-subtle mb-1">Пароль</label>
+                        <input type="password" id="auth-password" name="password" required placeholder="Введите пароль"
+                               class="w-full p-3 rounded-lg bg-revent-active/30 text-revent-text placeholder-revent-subtle focus:outline-none focus:ring-2 focus:ring-revent-accent border border-transparent focus:border-revent-accent/50">
+                    </div>
+                    
+                    <button type="submit" id="auth-submit-btn" class="w-full bg-revent-accent text-black font-semibold p-3 rounded-lg hover:bg-revent-accent/80 transition duration-300 shadow-lg shadow-revent-accent/30 flex items-center justify-center space-x-2">
+                        <span id="auth-btn-text">Войти</span>
+                        <!-- Спиннер (изначально скрыт) -->
+                        <svg id="auth-spinner" class="animate-spin h-5 w-5 text-black hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </button>
+                    
+                    <!-- Сообщение об ошибке --><p id="auth-error-message" class="mt-4 text-center text-revent-error text-sm hidden"></p>
+                </form>
+
+                <!-- Гостевой вход (Новый блок) --><div class="mt-4 pt-4 border-t border-revent-active/50">
+                    <button id="guest-login-btn" onclick="window.signInAsGuest()" class="w-full bg-revent-active/50 text-revent-text font-semibold p-3 rounded-lg hover:bg-revent-active transition duration-300 flex items-center justify-center space-x-2">
+                        <span id="guest-btn-text">Войти как Гость</span>
+                        <!-- Спиннер для гостевого входа (используем тот же шаблон) -->
+                        <svg id="guest-spinner" class="animate-spin h-5 w-5 text-revent-text hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="mt-6 text-center">
+                    <button id="auth-switch-link" class="text-revent-subtle hover:text-revent-text text-sm transition duration-150">
+                        Нет аккаунта? <span class="font-bold text-revent-accent">Зарегистрироваться</span>
+                    </button>
+                </div>
             </div>
-        </header>
+            
+        </div>
 
-        <!-- Контейнер для сообщений -->
-        <main id="messages-container" class="flex-grow p-4 space-y-4">
-            <!-- Сообщения будут добавлены сюда JavaScript'ом -->
-            <div id="system-message" class="text-center text-revent-subtle pt-8">
-                Соединение с Firebase...
+        <!-- Основной вид чата (Изначально скрыт) --><div id="chat-view" class="flex h-full w-full hidden">
+
+            <!-- Боковая панель (Список каналов/чатов) --><div id="sidebar" class="w-64 bg-revent-panel/90 flex flex-col shadow-xl flex-shrink-0 backdrop-blur-sm relative z-10">
+                <!-- Заголовок / Профиль --><div class="p-4 border-b border-revent-active flex items-center justify-between">
+                    <span class="text-xl font-bold text-revent-text">Revent Chat</span>
+                    <span id="auth-status" class="text-revent-accent text-sm">Онлайн</span>
+                </div>
+
+                <!-- Список категорий и каналов --><div id="channel-list" class="flex-grow p-2 custom-scroll overflow-y-auto">
+                    <!-- Группа: Основное --><div class="mt-4">
+                        <h3 class="text-xs font-semibold uppercase text-revent-subtle px-2 mb-1">Общее</h3>
+                        <div data-channel="general" class="channel-item p-2 rounded-lg cursor-pointer flex items-center space-x-2 active bg-revent-active text-revent-text" onclick="changeChannel('general', this)">
+                            <span class="text-revent-accent">#</span>
+                            <span class="truncate">общий-чат</span>
+                        </div>
+                        <div data-channel="announcements" class="channel-item p-2 rounded-lg cursor-pointer flex items-center space-x-2 hover:bg-revent-active/20 text-revent-subtle" onclick="changeChannel('announcements', this)">
+                            <span class="text-revent-subtle">#</span>
+                            <span class="truncate">новости</span>
+                        </div>
+                    </div>
+
+                    <!-- Группа: Проекты --><div class="mt-4">
+                        <h3 class="text-xs font-semibold uppercase text-revent-subtle px-2 mb-1">Проекты</h3>
+                        <div data-channel="frontend" class="channel-item p-2 rounded-lg cursor-pointer flex items-center space-x-2 hover:bg-revent-active/20 text-revent-subtle" onclick="changeChannel('frontend', this)">
+                            <span class="text-revent-subtle">#</span>
+                            <span class="truncate">frontend-dev</span>
+                        </div>
+                        <div data-channel="design" class="channel-item p-2 rounded-lg cursor-pointer flex items-center space-x-2 hover:bg-revent-active/20 text-revent-subtle" onclick="changeChannel('design', this)">
+                            <span class="text-revent-subtle">#</span>
+                            <span class="truncate">дизайн</span>
+                        </div>
+                    </div>
+
+                    <!-- Группа: Голосовые --><div class="mt-4">
+                        <h3 class="text-xs font-semibold uppercase text-revent-subtle px-2 mb-1">Голосовые</h3>
+                        <div class="p-2 rounded-lg flex items-center space-x-2 text-revent-subtle hover:bg-revent-active/20 cursor-pointer">
+                             <!-- Иконка микрофона (для голосовых) --><svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-2 3v-3H4a2 2 0 01-2-2V5z"></path></svg>
+                            <span class="truncate">Комната 1</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Пользовательская информация (нижняя панель) --><div class="p-3 bg-revent-active/30 border-t border-revent-active/50 flex items-center space-x-3">
+                    <div class="w-8 h-8 rounded-full bg-revent-accent flex items-center justify-center font-bold text-black text-sm" id="user-avatar">G</div>
+                    <div class="flex-1 min-w-0">
+                        <div class="font-semibold text-sm truncate" id="user-display-name">Гость</div>
+                        <!-- Кнопка выхода -->
+                        <button id="logout-button" onclick="window.handleLogout()" class="text-xs text-revent-error hover:text-red-300 transition duration-150">
+                            Выход
+                        </button>
+                        <div class="text-xs text-revent-subtle truncate" id="user-display-id"></div>
+                    </div>
+                </div>
             </div>
-        </main>
 
-        <!-- Форма ввода сообщения -->
-        <footer class="p-4 bg-revent-panel shadow-2xl rounded-t-xl sticky bottom-0 z-10">
-            <form id="message-form" class="flex gap-3">
-                <input type="text" id="message-input" placeholder="Введите ваше сообщение..." required
-                       class="flex-grow p-3 rounded-xl bg-revent-dark border border-revent-active focus:outline-none focus:ring-2 focus:ring-revent-accent text-revent-text placeholder-revent-subtle transition">
-                <button type="submit" id="send-button"
-                        class="bg-revent-accent text-revent-dark font-semibold py-3 px-5 rounded-xl hover:bg-opacity-90 transition duration-200 shadow-lg shadow-revent-accent/30 disabled:opacity-50 disabled:cursor-not-allowed">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l4.499-1.341c.823-.244 1.62-.485 2.5-1.124l5.65 3.39c.642.385 1.44-.061 1.44-.897V4.303a1 1 0 00-.772-.942l-9-3z" clip-rule="evenodd" fill-rule="evenodd"></path></svg>
-                </button>
-            </form>
-        </footer>
+            <!-- Основная область чата --><div class="flex-1 flex flex-col bg-revent-dark/80 backdrop-blur-sm relative z-10">
+                <!-- Заголовок чата (Название канала) --><div class="p-4 border-b border-revent-active/50 bg-revent-panel/90 shadow-md flex-shrink-0 flex justify-between items-center">
+                    <h1 id="chat-title" class="text-xl font-bold flex items-center space-x-2">
+                        <span class="text-revent-accent text-lg font-mono">#</span>
+                        <span>общий-чат</span>
+                    </h1>
+                    <!-- Кнопка "Сводка чата" (Gemini) -->
+                    <button id="summary-button" onclick="window.summarizeChannel()" class="bg-revent-active/50 text-revent-text text-sm font-medium py-1 px-3 rounded-full hover:bg-revent-accent/20 transition duration-300 flex items-center space-x-1 disabled:opacity-50">
+                        <span id="summary-text">✨ Сводка чата</span>
+                        <svg id="summary-spinner" class="animate-spin h-4 w-4 text-revent-text hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Область сообщений --><div id="messages-container" class="flex-grow p-4 space-y-4 overflow-y-auto custom-scroll">
+                    <!-- Сообщения будут добавлены здесь через JS / Firestore --></div>
+
+                <!-- Поле ввода сообщения --><div class="p-4 bg-revent-panel/90 border-t border-revent-active/50 flex-shrink-0">
+                    <form id="message-form" class="flex space-x-3">
+                        <button type="button" class="text-revent-subtle hover:text-revent-accent transition duration-150" title="Прикрепить файл">
+                            <!-- Иконка "плюс" --><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                        </button>
+                        
+                        <!-- Кнопка "Черновик" (Draft Improvement) -->
+                        <button type="button" id="draft-button" onclick="window.improveDraft()" class="text-revent-subtle hover:text-revent-accent transition duration-150 flex items-center justify-center px-1" title="Улучшить черновик (Gemini)">
+                            <span class="text-lg">✨</span>
+                        </button>
+
+                        <input type="text" id="message-input" placeholder="Написать сообщение в #общий-чат" class="flex-grow p-3 rounded-full bg-revent-active/30 text-revent-text placeholder-revent-subtle focus:outline-none focus:ring-2 focus:ring-revent-accent transition duration-300 border border-transparent focus:border-revent-accent/50" autocomplete="off">
+                        <button type="submit" class="bg-revent-accent text-black font-semibold p-3 rounded-full hover:bg-revent-accent/80 transition duration-300 shadow-lg shadow-revent-accent/30 flex items-center justify-center">
+                            <!-- Иконка "отправить" --><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 00.183.183l7.001-3.5 7 3.5a1 1 0 00.183-.183l-7-14z"></path></svg>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- Firebase SDK и основной скрипт -->
+    <!-- Подключение particles.js --><script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script>
+        // Инициализация particles.js
+        particlesJS('particles-js', {
+            "particles": {
+                "number": {
+                    "value": 80,
+                    "density": {
+                        "enable": true,
+                        "value_area": 800
+                    }
+                },
+                "color": {
+                    "value": ["#00bfff", "#8f9ba8", "#e0e0e0"] // Цвета точек (акцент, субтл, текст)
+                },
+                "shape": {
+                    "type": "circle",
+                    "stroke": {
+                        "width": 0,
+                        "color": "#000000"
+                    },
+                    "polygon": {
+                        "nb_sides": 5
+                    }
+                },
+                "opacity": {
+                    "value": 0.5,
+                    "random": false,
+                    "anim": {
+                        "enable": false,
+                        "speed": 1,
+                        "opacity_min": 0.1,
+                        "sync": false
+                    }
+                },
+                "size": {
+                    "value": 3,
+                    "random": true,
+                    "anim": {
+                        "enable": false,
+                        "speed": 40,
+                        "size_min": 0.1,
+                        "sync": false
+                    }
+                },
+                "line_linked": {
+                    "enable": true,
+                    "distance": 150,
+                    "color": "#4c5885", // Цвет линий (активный/вторичный)
+                    "opacity": 0.4,
+                    "width": 1
+                },
+                "move": {
+                    "enable": true,
+                    "speed": 2, // Скорость движения частиц
+                    "direction": "none",
+                    "random": false,
+                    "straight": false,
+                    "out_mode": "out",
+                    "bounce": false,
+                    "attract": {
+                        "enable": false,
+                        "rotateX": 600,
+                        "rotateY": 1200
+                    }
+                }
+            },
+            "interactivity": {
+                "detect_on": "canvas",
+                "events": {
+                    "onhover": {
+                        "enable": true,
+                        "mode": "grab" // Точки будут притягиваться к курсору
+                    },
+                    "onclick": {
+                        "enable": true,
+                        "mode": "push" // При клике добавляются новые точки
+                    },
+                    "resize": true
+                },
+                "modes": {
+                    "grab": {
+                        "distance": 140,
+                        "line_linked": {
+                            "opacity": 1 // Линии становятся ярче при наведении
+                        }
+                    },
+                    "bubble": {
+                        "distance": 400,
+                        "size": 40,
+                        "duration": 2,
+                        "opacity": 8,
+                        "speed": 3
+                    },
+                    "repulse": {
+                        "distance": 200,
+                        "duration": 0.4
+                    },
+                    "push": {
+                        "particles_nb": 4
+                    },
+                    "remove": {
+                        "particles_nb": 2
+                    }
+                }
+            },
+            "retina_detect": true
+        });
+    </script>
+
+
     <script type="module">
+        // --- Firebase Imports ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // Добавлен signInAnonymously для гостевого входа
+        import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, signOut, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, query, onSnapshot, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- Глобальные переменные Canvas (ОБЯЗАТЕЛЬНО К ИСПОЛЬЗОВАНИЮ) ---
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // --- UI Constants ---
+        const MESSAGES_CONTAINER = document.getElementById('messages-container');
+        const MESSAGE_FORM = document.getElementById('message-form');
+        const MESSAGE_INPUT = document.getElementById('message-input');
+        const CHAT_TITLE = document.getElementById('chat-title');
+        const CHANNEL_LIST = document.getElementById('channel-list');
+        const CHAT_VIEW = document.getElementById('chat-view');
+        // Переименованный главный контейнер аутентификации
+        const AUTH_VIEW = document.getElementById('auth-view'); 
+        const USER_DISPLAY_NAME = document.getElementById('user-display-name');
+        const USER_DISPLAY_ID = document.getElementById('user-display-id');
+        const USER_AVATAR = document.getElementById('user-avatar');
         
-        if (!firebaseConfig) {
-            console.error("Firebase config is missing. Cannot initialize Firebase.");
-            document.getElementById('system-message').textContent = '❌ Ошибка: Конфигурация Firebase отсутствует.';
-            return;
-        }
+        // Новые константы для UI аутентификации
+        const AUTH_FORM = document.getElementById('auth-form');
+        const AUTH_TITLE = document.getElementById('auth-title');
+        const AUTH_EMAIL_INPUT = document.getElementById('auth-email');
+        const AUTH_PASSWORD_INPUT = document.getElementById('auth-password');
+        const AUTH_SUBMIT_BTN = document.getElementById('auth-submit-btn');
+        const AUTH_BTN_TEXT = document.getElementById('auth-btn-text');
+        const AUTH_SPINNER = document.getElementById('auth-spinner');
+        const AUTH_ERROR_MESSAGE = document.getElementById('auth-error-message');
+        const AUTH_SWITCH_LINK = document.getElementById('auth-switch-link');
+        
+        // Константы для гостевого входа
+        const GUEST_LOGIN_BTN = document.getElementById('guest-login-btn');
+        const GUEST_BTN_TEXT = document.getElementById('guest-btn-text');
+        const GUEST_SPINNER = document.getElementById('guest-spinner');
 
-        // --- Инициализация Firebase ---
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
+
+        // Новые константы для Gemini API функций
+        const DRAFT_BUTTON = document.getElementById('draft-button');
+        const SUMMARY_BUTTON = document.getElementById('summary-button');
+        const SUMMARY_SPINNER = document.getElementById('summary-spinner');
+        const SUMMARY_TEXT = document.getElementById('summary-text');
+
+
+        // --- Firebase Globals (Updated with user's specific keys) ---
+        // ИСПОЛЬЗУЕМ ВАШУ КОНФИГУРАЦИЮ FIREBASE
+        const firebaseConfig = {
+          apiKey: "AIzaSyB4wB9Y4U0NpqWDQ0_Iw5B4-ARcXCv_MFY",
+          authDomain: "reventchat.firebaseapp.com",
+          projectId: "reventchat",
+          storageBucket: "reventchat.firebasestorage.app",
+          messagingSenderId: "559607678515",
+          appId: "1:559607678515:web:857c2ae7d06abc775dc546"
+        };
+        const appId = firebaseConfig.appId; 
+        const initialAuthToken = null; 
+
+
+        let app, db, auth;
+        let currentChannel = 'general';
         let currentUserId = null;
-        let authReady = false;
+        let currentUserName = 'Гость';
+        let unsubscribeMessageListener = null;
+        let isRegisterMode = false; // Состояние формы: false = Вход, true = Регистрация
+        
+        // --- Gemini API Globals ---
+        const API_KEY = "";
+        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent";
+        const MAX_RETRIES = 5;
+        
+        // --- TTS Globals ---
+        let audioPlayer = null; // HTML Audio element for simple playback
+        const TTS_API_MODEL = "gemini-2.5-flash-preview-tts";
+        const TTS_VOICE_NAME = "Kore"; 
+        const PCM_SAMPLE_RATE = 24000; 
 
-        // Включаем логирование для отладки
-        setLogLevel('Debug');
 
-        const messagesContainer = document.getElementById('messages-container');
-        const messageForm = document.getElementById('message-form');
-        const messageInput = document.getElementById('message-input');
-        const userInfoElement = document.getElementById('user-info');
-        const sendButton = document.getElementById('send-button');
+        // --- Helper Functions for TTS (unchanged) ---
 
-        // --- Вспомогательные функции ---
-
-        // Конвертация PCM16 в WAV (НЕОБХОДИМА ДЛЯ TTS)
+        // Helper to convert base64 to ArrayBuffer
         function base64ToArrayBuffer(base64) {
-            const binaryString = atob(base64);
+            const binaryString = window.atob(base64);
             const len = binaryString.length;
             const bytes = new Uint8Array(len);
             for (let i = 0; i < len; i++) {
@@ -129,277 +435,726 @@
             return bytes.buffer;
         }
 
-        function pcmToWav(pcm16, sampleRate) {
-            const numChannels = 1;
-            const bytesPerSample = 2;
-            const blockAlign = numChannels * bytesPerSample;
+        // Helper to convert PCM 16-bit data to WAV format (Blob)
+        function pcmToWav(pcmData, sampleRate) {
+            const numChannels = 1; // Mono
+            const bitsPerSample = 16;
+            const blockAlign = numChannels * (bitsPerSample / 8);
             const byteRate = sampleRate * blockAlign;
+            const dataLength = pcmData.length * 2; // Int16Array length * 2 bytes/sample
 
-            const wavData = new ArrayBuffer(44 + pcm16.length * bytesPerSample);
-            const view = new DataView(wavData);
+            const buffer = new ArrayBuffer(44 + dataLength);
+            const dataView = new DataView(buffer);
+            let offset = 0;
 
             // RIFF chunk
-            writeString(view, 0, 'RIFF');
-            view.setUint32(4, 36 + pcm16.length * bytesPerSample, true);
-            writeString(view, 8, 'WAVE');
-            
-            // FMT chunk
-            writeString(view, 12, 'fmt ');
-            view.setUint32(16, 16, true);          // Subchunk1Size (16 for PCM)
-            view.setUint16(20, 1, true);           // AudioFormat (1 for PCM)
-            view.setUint16(22, numChannels, true); // NumChannels
-            view.setUint32(24, sampleRate, true);  // SampleRate
-            view.setUint32(28, byteRate, true);    // ByteRate
-            view.setUint16(32, blockAlign, true);  // BlockAlign
-            view.setUint16(34, 16, true);          // BitsPerSample
+            function writeString(s) {
+                for (let i = 0; i < s.length; i++) {
+                    dataView.setUint8(offset + i, s.charCodeAt(i));
+                }
+                offset += s.length;
+            }
 
-            // DATA chunk
-            writeString(view, 36, 'data');
-            view.setUint32(40, pcm16.length * bytesPerSample, true);
+            writeString('RIFF');
+            dataView.setUint32(offset, 36 + dataLength, true); offset += 4; // File size - 8
+            writeString('WAVE');
+
+            // FMT chunk
+            writeString('fmt ');
+            dataView.setUint32(offset, 16, true); offset += 4; // Sub-chunk size (16 for PCM)
+            dataView.setUint16(offset, 1, true); offset += 2; // Audio Format (1 for PCM)
+            dataView.setUint16(offset, numChannels, true); offset += 2; // Number of channels
+            dataView.setUint32(offset, sampleRate, true); offset += 4; // Sample Rate
+            dataView.setUint32(offset, byteRate, true); offset += 4; // Byte Rate
+            dataView.setUint16(offset, blockAlign, true); offset += 2; // Block Align
+            dataView.setUint16(offset, bitsPerSample, true); offset += 2; // Bits per sample
+
+            // Data chunk
+            writeString('data');
+            dataView.setUint32(offset, dataLength, true); offset += 4; // Data size
 
             // Write PCM data
-            let offset = 44;
-            for (let i = 0; i < pcm16.length; i++) {
-                view.setInt16(offset, pcm16[i], true);
-                offset += 2;
-            }
-
-            return new Blob([wavData], { type: 'audio/wav' });
-
-            function writeString(view, offset, string) {
-                for (let i = 0; i < string.length; i++) {
-                    view.setUint8(offset + i, string.charCodeAt(i));
-                }
-            }
+            const pcmView = new Int16Array(buffer, offset);
+            pcmView.set(pcmData);
+            
+            return new Blob([buffer], { type: 'audio/wav' });
         }
 
-        // Обработка TTS (Text-to-Speech)
-        async function playTTS(text, button) {
-            button.disabled = true;
-            button.innerHTML = `<svg class="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
 
-            const ttsEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=`;
-            const payload = {
-                contents: [{ parts: [{ text: text }] }],
-                generationConfig: {
-                    responseModalities: ["AUDIO"],
-                    speechConfig: {
-                        voiceConfig: {
-                            prebuiltVoiceConfig: { voiceName: "Kore" } // Выбираем голос
-                        }
+        // --- UI Helper Functions ---
+        
+        /**
+         * Управляет состоянием загрузки для кнопок аутентификации.
+         * @param {boolean} isGuest - Флаг, указывающий, гостевая ли это кнопка.
+         */
+        function showLoading(isGuest = false) {
+            if (isGuest) {
+                GUEST_SPINNER.classList.remove('hidden');
+                GUEST_BTN_TEXT.classList.add('hidden');
+                GUEST_LOGIN_BTN.disabled = true;
+            } else {
+                AUTH_SPINNER.classList.remove('hidden');
+                AUTH_BTN_TEXT.classList.add('hidden');
+                AUTH_SUBMIT_BTN.disabled = true;
+            }
+            AUTH_ERROR_MESSAGE.classList.add('hidden');
+            GUEST_LOGIN_BTN.disabled = true; // Отключаем обе кнопки во время процесса
+            AUTH_SUBMIT_BTN.disabled = true; 
+        }
+
+        /**
+         * Восстанавливает нормальное состояние кнопок аутентификации.
+         */
+        function hideLoading() {
+            AUTH_SPINNER.classList.add('hidden');
+            AUTH_BTN_TEXT.classList.remove('hidden');
+            AUTH_SUBMIT_BTN.disabled = false;
+            
+            GUEST_SPINNER.classList.add('hidden');
+            GUEST_BTN_TEXT.classList.remove('hidden');
+            GUEST_LOGIN_BTN.disabled = false;
+        }
+
+        function showFormError(message) {
+            AUTH_ERROR_MESSAGE.textContent = message;
+            AUTH_ERROR_MESSAGE.classList.remove('hidden');
+            // Скрыть сообщение об ошибке через 5 секунд
+            setTimeout(() => AUTH_ERROR_MESSAGE.classList.add('hidden'), 5000);
+        }
+        
+        /**
+         * Переключает режим между Входом и Регистрацией.
+         */
+        function toggleAuthMode() {
+            isRegisterMode = !isRegisterMode;
+            AUTH_FORM.reset(); // Сброс полей
+            AUTH_ERROR_MESSAGE.classList.add('hidden');
+
+            if (isRegisterMode) {
+                AUTH_TITLE.textContent = 'Регистрация нового пользователя';
+                AUTH_BTN_TEXT.textContent = 'Зарегистрироваться';
+                AUTH_SWITCH_LINK.innerHTML = 'Уже есть аккаунт? <span class="font-bold text-revent-accent">Войти</span>';
+            } else {
+                AUTH_TITLE.textContent = 'Вход в Revent Chat';
+                AUTH_BTN_TEXT.textContent = 'Войти';
+                AUTH_SWITCH_LINK.innerHTML = 'Нет аккаунта? <span class="font-bold text-revent-accent">Зарегистрироваться</span>';
+            }
+        }
+        
+        // --- Firebase Setup and Authentication ---
+
+        async function setupFirebase() {
+            setLogLevel('Debug');
+            
+            if (!firebaseConfig.projectId || !firebaseConfig.apiKey) {
+                // Если конфигурация отсутствует, показываем ошибку в модальном окне
+                 document.getElementById('auth-card').innerHTML = `<div class="p-4 text-center">
+                                                    <p class="text-xl text-red-400 font-bold">Ошибка конфигурации Firebase</p>
+                                                    <p class="text-revent-subtle mt-2">Пожалуйста, убедитесь, что вы заменили ключи в коде.</p>
+                                                </div>`;
+                return;
+            }
+            
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+
+            // Аутентификация
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    currentUserId = user.uid;
+                    let displayId;
+
+                    if (user.isAnonymous) {
+                        // ЛОГИКА ДЛЯ ГОСТЯ
+                        currentUserName = `Гость-${user.uid.substring(0, 5)}`;
+                        displayId = `ID: ${user.uid.substring(0, 8)}...`;
+                        
+                        USER_AVATAR.textContent = 'G';
+                        USER_AVATAR.classList.remove('bg-revent-accent', 'text-black');
+                        USER_AVATAR.classList.add('bg-revent-active', 'text-revent-text/80');
+
+                    } else {
+                        // ЛОГИКА ДЛЯ ПОЛЬЗОВАТЕЛЯ EMAIL/PASSWORD
+                        currentUserName = user.displayName || user.email.split('@')[0] || `Пользователь-${user.uid.substring(0, 5)}`;
+                        displayId = user.email;
+
+                        USER_AVATAR.textContent = currentUserName.charAt(0).toUpperCase();
+                        USER_AVATAR.classList.remove('bg-revent-active', 'text-revent-text/80');
+                        USER_AVATAR.classList.add('bg-revent-accent', 'text-black');
                     }
-                },
-                model: "gemini-2.5-flash-preview-tts"
-            };
+
+                    // Обновление UI пользователя
+                    USER_DISPLAY_NAME.textContent = currentUserName;
+                    USER_DISPLAY_ID.textContent = displayId;
+
+                    // Показываем чат, скрываем форму аутентификации
+                    AUTH_VIEW.classList.add('hidden');
+                    CHAT_VIEW.classList.remove('hidden');
+
+                    // Запускаем прослушивание сообщений для активного канала
+                    listenForMessages(currentChannel);
+
+                } else {
+                    // Если пользователь не аутентифицирован, показываем форму входа
+                    AUTH_VIEW.classList.remove('hidden');
+                    CHAT_VIEW.classList.add('hidden');
+                    // Сбрасываем подписку на сообщения, если она была активна
+                    if (unsubscribeMessageListener) {
+                        unsubscribeMessageListener();
+                        unsubscribeMessageListener = null;
+                    }
+                    MESSAGES_CONTAINER.innerHTML = '';
+                    currentUserId = null;
+                    hideLoading(); // Сбрасываем все индикаторы загрузки
+                }
+            });
+        }
+        
+        /**
+         * Обрабатывает Вход или Регистрацию по Email/Password.
+         */
+        AUTH_FORM.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = AUTH_EMAIL_INPUT.value.trim();
+            const password = AUTH_PASSWORD_INPUT.value.trim();
+
+            if (password.length < 6) {
+                showFormError("Пароль должен быть не менее 6 символов.");
+                return;
+            }
+            
+            showLoading(false); // Загрузка для email/password
 
             try {
-                const response = await fetch(ttsEndpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                const result = await response.json();
-                const part = result?.candidates?.[0]?.content?.parts?.[0];
-                const audioData = part?.inlineData?.data;
-                const mimeType = part?.inlineData?.mimeType;
-
-                if (audioData && mimeType && mimeType.startsWith("audio/")) {
-                    const sampleRateMatch = mimeType.match(/rate=(\d+)/);
-                    const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 16000;
+                if (isRegisterMode) {
+                    // РЕГИСТРАЦИЯ
+                    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
                     
-                    const pcmData = base64ToArrayBuffer(audioData);
-                    const pcm16 = new Int16Array(pcmData);
-                    const wavBlob = pcmToWav(pcm16, sampleRate);
-                    const audioUrl = URL.createObjectURL(wavBlob);
-
-                    const audio = new Audio(audioUrl);
+                    // Устанавливаем отображаемое имя (берем часть email до @)
+                    const displayName = email.split('@')[0];
+                    await updateProfile(userCredential.user, { displayName: displayName });
                     
-                    audio.onended = () => {
-                        // Восстанавливаем кнопку после окончания проигрывания
-                        button.innerHTML = `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.414 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.414l3.879-3.879a1 1 0 011.09-.045zM14.075 4.097a1 1 0 011.042 1.63L13.25 7.967A1 1 0 0113.25 12.033L15.117 14.27a1 1 0 01-1.042 1.63l-2.032-2.427A8.995 8.995 0 0110 16V4c.536 0 1.054.088 1.554.254l2.031-1.298a1 1 0 01.488-.119z" clip-rule="evenodd"></path></svg>`;
-                        button.disabled = false;
-                    };
-                    audio.play();
+                    // При успешной регистрации onAuthStateChanged сам обновит UI
                 } else {
-                    console.error("Не удалось сгенерировать аудио.");
-                    alertMessage("❌ Не удалось сгенерировать аудио.", 'error');
+                    // ВХОД
+                    await signInWithEmailAndPassword(auth, email, password);
+                    // При успешном входе onAuthStateChanged сам обновит UI
                 }
+
             } catch (error) {
-                console.error("TTS Playback Error:", error);
-                alertMessage("❌ Ошибка TTS. См. консоль.", 'error');
-            } finally {
-                // Восстанавливаем кнопку, если произошла ошибка до onended
-                if (button.disabled && !button.innerHTML.includes('animate-spin')) {
-                     button.innerHTML = `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.414 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.414l3.879-3.879a1 1 0 011.09-.045zM14.075 4.097a1 1 0 011.042 1.63L13.25 7.967A1 1 0 0113.25 12.033L15.117 14.27a1 1 0 01-1.042 1.63l-2.032-2.427A8.995 8.995 0 0110 16V4c.536 0 1.054.088 1.554.254l2.031-1.298a1 1 0 01.488-.119z" clip-rule="evenodd" fill-rule="evenodd"></path></svg>`;
-                     button.disabled = false;
+                console.error("Auth Error:", error);
+                
+                let errorMessage;
+                switch (error.code) {
+                    case 'auth/user-not-found':
+                    case 'auth/wrong-password':
+                        errorMessage = "Неверный email или пароль.";
+                        break;
+                    case 'auth/email-already-in-use':
+                        errorMessage = "Этот email уже используется. Попробуйте войти.";
+                        break;
+                    case 'auth/invalid-email':
+                        errorMessage = "Неверный формат email.";
+                        break;
+                    case 'auth/weak-password':
+                        errorMessage = "Слишком слабый пароль (мин. 6 символов).";
+                        break;
+                    default:
+                        errorMessage = `Ошибка аутентификации: ${error.message.substring(0, 50)}...`;
+                        break;
                 }
+                
+                showFormError(errorMessage);
+            } finally {
+                hideLoading();
+            }
+        });
+
+        /**
+         * Обрабатывает вход как гость (анонимная аутентификация).
+         */
+        window.signInAsGuest = async function() {
+            showLoading(true); // Загрузка для гостевого входа
+            try {
+                // Анонимный вход
+                await signInAnonymously(auth);
+                // onAuthStateChanged сам обновит UI
+            } catch (error) {
+                console.error("Guest Sign-in Error:", error);
+                showFormError("Не удалось войти как гость. Попробуйте позже.");
+            } finally {
+                hideLoading();
             }
         }
 
-        function createMessageElement(message) {
-            const isSelf = message.userId === currentUserId;
-            const messageWrapper = document.createElement('div');
-            messageWrapper.className = `flex ${isSelf ? 'justify-end' : 'justify-start'}`;
+        // Обработчик переключения режимов
+        AUTH_SWITCH_LINK.addEventListener('click', toggleAuthMode);
+        
+        /**
+         * Выход пользователя из системы.
+         */
+        window.handleLogout = async function() {
+             try {
+                await signOut(auth);
+                // onAuthStateChanged сработает и покажет форму входа
+             } catch (error) {
+                console.error("Logout Error:", error);
+                // Если не удалось выйти, показываем ошибку в чате
+                addSystemMessageToDOM(`❌ Ошибка выхода: ${error.message}`);
+             }
+        }
 
-            const messageBox = document.createElement('div');
-            messageBox.className = `max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-2xl shadow-md flex flex-col ${isSelf ? 'bg-revent-accent text-revent-dark rounded-br-none' : 'bg-revent-panel text-revent-text rounded-tl-none'}`;
 
-            // Никнейм/ID (только для чужих сообщений)
-            if (!isSelf) {
-                const userIdDisplay = document.createElement('span');
-                userIdDisplay.className = 'text-xs font-semibold mb-1 text-revent-accent break-all';
-                userIdDisplay.textContent = message.userId;
-                messageBox.appendChild(userIdDisplay);
+        // --- Firestore Logic (unchanged) ---
+
+        function getChannelPath(channelId) {
+            // Путь для публичных данных: /artifacts/{appId}/public/data/messages_{channelId}
+            return `artifacts/${appId}/public/data/messages_${channelId}`;
+        }
+
+        function listenForMessages(channelId) {
+            if (unsubscribeMessageListener) {
+                unsubscribeMessageListener(); // Отписываемся от предыдущего канала
+            }
+
+            const messagesQuery = query(
+                collection(db, getChannelPath(channelId))
+                // Firestore. Note: Avoiding orderBy here to prevent index requirement errors.
+            );
+
+            // Очищаем существующие сообщения
+            MESSAGES_CONTAINER.innerHTML = '';
+
+            // Слушатель в реальном времени
+            unsubscribeMessageListener = onSnapshot(messagesQuery, (snapshot) => {
+                MESSAGES_CONTAINER.innerHTML = ''; // Очищаем и перерисовываем
+
+                const messages = [];
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    messages.push({
+                        id: doc.id,
+                        user: data.user || 'Неизвестный',
+                        text: data.text,
+                        timestamp: data.timestamp ? data.timestamp.toMillis() : 0, // Конвертируем метку времени
+                        userId: data.userId
+                    });
+                });
+
+                // Сортировка на стороне клиента по метке времени
+                messages.sort((a, b) => a.timestamp - b.timestamp);
+
+                // Рендеринг отсортированных сообщений
+                messages.forEach(msg => {
+                    const isMe = msg.userId === currentUserId;
+                    const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '??:??';
+                    addMessageToDOM(msg.user, msg.text, timeStr, isMe);
+                });
+
+            }, (error) => {
+                console.error("Error listening to messages:", error);
+                MESSAGES_CONTAINER.innerHTML = `<div class="text-center text-red-400 mt-10">Ошибка загрузки сообщений.</div>`;
+            });
+        }
+
+        // --- DOM Manipulation (unchanged) ---
+        
+        // Helper: Добавление обычного сообщения в DOM
+        function addMessageToDOM(username, text, time, isMine) {
+            const container = document.createElement('div');
+            container.className = `flex ${isMine ? 'justify-end' : 'justify-start'} items-start space-x-3 message-bubble`;
+            
+            // Аватар (только для чужих сообщений)
+            if (!isMine) {
+                const avatar = document.createElement('div');
+                // Проверяем, является ли пользователь гостем для стилизации
+                const isGuest = username.startsWith('Гость-');
+                avatar.className = `w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${
+                    isGuest 
+                    ? 'bg-revent-active text-revent-text/80' 
+                    : 'bg-revent-accent text-black'
+                }`;
+                avatar.textContent = username.charAt(0).toUpperCase();
+                container.appendChild(avatar);
+            }
+
+            // Пузырь сообщения
+            const bubble = document.createElement('div');
+            bubble.className = `max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-xl shadow-lg relative ${
+                isMine 
+                ? 'bg-revent-accent text-black rounded-br-none' 
+                : 'bg-revent-panel text-revent-text rounded-tl-none'
+            }`;
+
+            // Имя пользователя (только для чужих сообщений)
+            if (!isMine) {
+                const user = document.createElement('span');
+                user.className = 'font-semibold text-revent-accent block text-sm mb-1';
+                user.textContent = username;
+                bubble.appendChild(user);
             }
 
             // Текст сообщения
             const messageText = document.createElement('p');
-            messageText.className = 'text-sm break-words';
-            messageText.textContent = message.text;
-            messageBox.appendChild(messageText);
+            messageText.className = 'text-sm whitespace-pre-wrap break-words';
+            messageText.innerHTML = text.replace(/\n/g, '<br>'); // Поддержка переноса строк
+            bubble.appendChild(messageText);
 
-            // Время
-            const timestamp = document.createElement('span');
-            timestamp.className = `text-xs mt-1 ${isSelf ? 'text-revent-dark opacity-80' : 'text-revent-subtle'}`;
-            const date = message.timestamp ? message.timestamp.toDate() : new Date();
-            timestamp.textContent = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-            messageBox.appendChild(timestamp);
-
+            // Метка времени
+            const timeStamp = document.createElement('div');
+            timeStamp.className = `text-xs mt-1 text-right ${isMine ? 'text-black/60' : 'text-revent-subtle'}`;
+            timeStamp.textContent = time;
+            bubble.appendChild(timeStamp);
+            
             // Кнопка TTS
             const ttsButton = document.createElement('button');
-            ttsButton.type = 'button';
-            ttsButton.className = `absolute -top-3 ${isSelf ? '-left-8' : '-right-8'} p-1 rounded-full bg-revent-active/70 hover:bg-revent-active transition text-revent-text focus:outline-none shadow-lg`;
-            ttsButton.innerHTML = `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.414 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.414l3.879-3.879a1 1 0 011.09-.045zM14.075 4.097a1 1 0 011.042 1.63L13.25 7.967A1 1 0 0113.25 12.033L15.117 14.27a1 1 0 01-1.042 1.63l-2.032-2.427A8.995 8.995 0 0110 16V4c.536 0 1.054.088 1.554.254l2.031-1.298a1 1 0 01.488-.119z" clip-rule="evenodd" fill-rule="evenodd"></path></svg>`;
-            ttsButton.addEventListener('click', () => playTTS(message.text, ttsButton));
+            ttsButton.className = `absolute -right-10 top-0.5 text-revent-subtle hover:text-green-400 transition duration-150 p-1 rounded-full ${isMine ? 'hidden' : ''}`;
+            ttsButton.innerHTML = `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.414 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.414l3.879-3.879a1 1 0 011.09-.045zM14.07 7.07a1 1 0 011.666 1.057 4.194 4.194 0 000 4.746 1 1 0 01-1.666 1.057 6.194 6.194 0 010-6.86zm3.54-1.92a1 1 0 011.597 1.259 8.194 8.194 0 000 9.122 1 1 0 01-1.597 1.259 10.194 10.194 0 010-11.64z" clip-rule="evenodd"></path></svg>`;
+            ttsButton.title = "Прослушать сообщение";
+            ttsButton.onclick = () => window.playTts(text, ttsButton);
+            bubble.appendChild(ttsButton);
 
-            const relativeContainer = document.createElement('div');
-            relativeContainer.className = 'relative';
-            relativeContainer.appendChild(messageBox);
-            relativeContainer.appendChild(ttsButton);
 
-            messageWrapper.appendChild(relativeContainer);
-            return messageWrapper;
+            container.appendChild(bubble);
+
+            // Аватар (только для моих сообщений)
+            if (isMine) {
+                const avatar = document.createElement('div');
+                 // Используем стили из аутентификации для собственного аватара
+                avatar.className = `w-8 h-8 rounded-full bg-revent-accent flex items-center justify-center font-bold text-sm text-black flex-shrink-0`;
+                avatar.textContent = username.charAt(0).toUpperCase();
+                container.appendChild(avatar);
+            }
+            
+            MESSAGES_CONTAINER.appendChild(container);
+            // Прокрутка вниз
+            MESSAGES_CONTAINER.scrollTop = MESSAGES_CONTAINER.scrollHeight;
         }
 
-        function scrollToBottom() {
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        // Helper: Добавление системного (информационного) сообщения
+        function addSystemMessageToDOM(text) {
+             const container = document.createElement('div');
+             container.className = 'flex justify-center my-4';
+             
+             const messageBox = document.createElement('div');
+             messageBox.className = 'text-center text-sm text-revent-subtle bg-revent-active/30 p-2 rounded-lg max-w-sm';
+             messageBox.innerHTML = text.replace(/\n/g, '<br>');
+             
+             container.appendChild(messageBox);
+             MESSAGES_CONTAINER.appendChild(container);
+             MESSAGES_CONTAINER.scrollTop = MESSAGES_CONTAINER.scrollHeight;
         }
 
-        // --- Аутентификация и Наблюдение за Базой Данных ---
 
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                // Пользователь аутентифицирован
-                currentUserId = user.uid;
-                userInfoElement.innerHTML = `<span class="inline-block bg-revent-active px-3 py-1 rounded-full text-xs font-mono" title="Ваш ID пользователя">${currentUserId}</span>`;
-                sendButton.disabled = false;
-                messageInput.disabled = false;
-                authReady = true;
-                document.getElementById('system-message').remove(); // Убираем сообщение о загрузке
-                
-                // Начинаем слушать сообщения
-                setupMessageListener();
+        // --- Event Handlers (UI/Action) ---
 
-            } else {
-                // Пользователь не аутентифицирован, пробуем вход
-                try {
-                    if (initialAuthToken) {
-                        await signInWithCustomToken(auth, initialAuthToken);
-                    } else {
-                        await signInAnonymously(auth);
-                        currentUserId = auth.currentUser.uid;
-                        alertMessage("⚠️ Вход выполнен анонимно. Данные могут быть недоступны другим пользователям.", 'warning');
+        // Переключение каналов (unchanged)
+        window.changeChannel = function(newChannelId, element) {
+            if (newChannelId === currentChannel) return;
+
+            // Смена активного класса в боковой панели
+            document.querySelectorAll('.channel-item').forEach(item => {
+                item.classList.remove('active', 'bg-revent-active', 'text-revent-text');
+                item.classList.add('hover:bg-revent-active/20', 'text-revent-subtle');
+            });
+            element.classList.add('active', 'bg-revent-active', 'text-revent-text');
+            element.classList.remove('hover:bg-revent-active/20', 'text-revent-subtle');
+
+            currentChannel = newChannelId;
+            // Обновление заголовка
+            CHAT_TITLE.querySelector('span:last-child').textContent = element.querySelector('span:last-child').textContent;
+            MESSAGE_INPUT.placeholder = `Написать сообщение в #${element.querySelector('span:last-child').textContent}`;
+            
+            // Запуск прослушивания нового канала
+            listenForMessages(currentChannel);
+        }
+
+        // Обработчик отправки формы (unchanged)
+        MESSAGE_FORM.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = MESSAGE_INPUT.value.trim();
+
+            if (text.length === 0 || !currentUserId) {
+                return;
+            }
+
+            MESSAGE_INPUT.value = ''; // Очистка поля ввода
+            
+            try {
+                // Добавление документа в коллекцию текущего канала
+                await addDoc(collection(db, getChannelPath(currentChannel)), {
+                    text: text,
+                    timestamp: serverTimestamp(),
+                    user: currentUserName,
+                    userId: currentUserId,
+                });
+            } catch (error) {
+                console.error("Error sending message:", error);
+                addSystemMessageToDOM(`❌ Ошибка отправки: ${error.message}`);
+                // Возвращаем текст в поле для повторной попытки
+                MESSAGE_INPUT.value = text;
+            }
+        });
+
+
+        // --- Gemini API Logic (LLM for text/summary, TTS - unchanged) ---
+
+        /**
+         * Generic function to make an authenticated Gemini API call with exponential backoff.
+         */
+        async function makeApiCall(systemPrompt, userQuery, isJson = false) {
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+
+            if (isJson) {
+                 payload.generationConfig = {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            "improved_text": { "type": "STRING", "description": "The refined and professional version of the user's input text." }
+                        }
                     }
-                } catch (error) {
-                    console.error("Firebase Auth Error:", error);
-                    alertMessage("❌ Ошибка аутентификации. Чат не будет работать.", 'error');
-                    sendButton.disabled = true;
-                    messageInput.disabled = true;
                 }
             }
-        });
+            
+            for (let i = 0; i < MAX_RETRIES; i++) {
+                try {
+                    const response = await fetch(`${API_URL}?key=${API_KEY}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
 
-        // Основная функция для подписки на сообщения
-        function setupMessageListener() {
-            // Путь к коллекции: /artifacts/{appId}/public/data/messages
-            const path = `artifacts/${appId}/public/data/messages`;
-            const messagesCollection = collection(db, path);
+                    if (response.status === 429 && i < MAX_RETRIES - 1) {
+                        const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue; // Retry
+                    }
 
-            // Создаем запрос: все сообщения, отсортированные по времени
-            // ВАЖНО: избегаем .orderBy() в запросе, сортируем на клиенте для совместимости с Canvas
-            const q = query(messagesCollection); 
+                    if (!response.ok) {
+                        throw new Error(`API call failed with status: ${response.status}`);
+                    }
 
-            onSnapshot(q, (snapshot) => {
-                const newMessages = [];
-                snapshot.forEach(doc => {
-                    newMessages.push({ id: doc.id, ...doc.data() });
-                });
-                
-                // Сортируем на стороне клиента по полю timestamp (если есть) или по дате
-                newMessages.sort((a, b) => {
-                    const timeA = a.timestamp ? a.timestamp.toMillis() : 0;
-                    const timeB = b.timestamp ? b.timestamp.toMillis() : 0;
-                    return timeA - timeB;
-                });
+                    const result = await response.json();
+                    const textPart = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    
+                    if (!textPart) {
+                        throw new Error("Received empty or malformed response from API.");
+                    }
 
-                messagesContainer.innerHTML = ''; // Очистка перед добавлением
-                newMessages.forEach(msg => {
-                    messagesContainer.appendChild(createMessageElement(msg));
-                });
+                    if (isJson) {
+                        try {
+                            // LLM returns a stringified JSON object
+                            const parsed = JSON.parse(textPart);
+                            return parsed.improved_text;
+                        } catch (e) {
+                            console.error("Failed to parse JSON response (received text:):", textPart, e);
+                            throw new Error("Failed to process structured response.");
+                        }
+                    }
 
-                scrollToBottom();
-            }, (error) => {
-                console.error("Ошибка при получении данных Firestore:", error);
-                alertMessage("❌ Не удалось загрузить сообщения.", 'error');
-            });
+                    return textPart;
+
+                } catch (error) {
+                    console.error("Gemini API Error (Attempt " + (i + 1) + "):", error);
+                    if (i === MAX_RETRIES - 1) throw error; // Re-throw on last attempt
+                }
+            }
         }
+        
+        /**
+         * Улучшает текст черновика в поле ввода с помощью Gemini.
+         */
+        window.improveDraft = async function() {
+            const text = MESSAGE_INPUT.value.trim();
+            if (!text) {
+                // Показываем временное сообщение, если ввод пуст
+                MESSAGE_INPUT.placeholder = 'Введите черновик, чтобы улучшить его.';
+                setTimeout(() => MESSAGE_INPUT.placeholder = `Написать сообщение в #${document.querySelector('.channel-item.active span:last-child').textContent}`, 2000);
+                return;
+            }
 
-        // --- Отправка сообщения ---
-        messageForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const text = messageInput.value.trim();
-
-            if (text === '' || !authReady || !currentUserId) return;
+            DRAFT_BUTTON.disabled = true;
+            DRAFT_BUTTON.innerHTML = '...'; // Простой индикатор загрузки
 
             try {
-                const path = `artifacts/${appId}/public/data/messages`;
-                await addDoc(collection(db, path), {
-                    userId: currentUserId,
-                    text: text,
-                    timestamp: serverTimestamp() // Используем серверное время
-                });
-                messageInput.value = ''; // Очищаем поле ввода
+                const systemPrompt = "You are a professional writing assistant. Take the user's draft message, correct any grammatical errors, improve clarity, and adjust the tone to be professional and concise. Respond ONLY with the refined text inside a JSON object with the key 'improved_text'. The response must be in Russian.";
+                
+                // Используем isJson=true для структурированного вывода
+                const improvedText = await makeApiCall(systemPrompt, `Draft: "${text}"`, true);
+                
+                if (improvedText) {
+                    MESSAGE_INPUT.value = improvedText;
+                }
+
             } catch (error) {
-                console.error("Ошибка при отправке сообщения:", error);
-                alertMessage("❌ Не удалось отправить сообщение.", 'error');
+                console.error("Error improving draft:", error);
+                // Простое сообщение об ошибке в поле ввода
+                MESSAGE_INPUT.placeholder = 'Ошибка: не удалось улучшить текст.';
+                setTimeout(() => MESSAGE_INPUT.placeholder = `Написать сообщение в #${document.querySelector('.channel-item.active span:last-child').textContent}`, 3000);
+            } finally {
+                DRAFT_BUTTON.disabled = false;
+                DRAFT_BUTTON.innerHTML = '<span class="text-lg">✨</span>'; // Восстанавливаем кнопку
             }
-        });
-
-        // --- Временный модальный/системный алерт (вместо alert()) ---
-        function alertMessage(message, type = 'info') {
-            const id = 'alert-' + Date.now();
-            const colorMap = {
-                'info': 'bg-blue-900 border-blue-600',
-                'warning': 'bg-yellow-900 border-yellow-600',
-                'error': 'bg-red-900 border-red-600',
-            };
-            
-            const alertHtml = `
-                <div id="${id}" class="fixed top-4 right-4 max-w-sm p-4 rounded-xl border-l-4 shadow-lg z-50 transition-opacity duration-300 ${colorMap[type]}" role="alert">
-                    <p class="text-sm font-medium text-revent-text">${message}</p>
-                </div>
-            `;
-            document.body.insertAdjacentHTML('beforeend', alertHtml);
-
-            // Автоматическое удаление через 5 секунд
-            setTimeout(() => {
-                const element = document.getElementById(id);
-                if (element) element.remove();
-            }, 5000);
         }
 
-    </script>
+        /**
+         * Генерирует и добавляет сводку последних сообщений в чат.
+         */
+        window.summarizeChannel = async function() {
+            SUMMARY_BUTTON.disabled = true;
+            SUMMARY_TEXT.classList.add('hidden');
+            SUMMARY_SPINNER.classList.remove('hidden');
 
+            try {
+                // 1. Извлекаем последние 10 сообщений (максимум)
+                const messagesElements = MESSAGES_CONTAINER.querySelectorAll('.flex:not(.justify-center)'); // Исключаем системные сообщения
+                const lastMessages = Array.from(messagesElements).slice(-10);
+
+                if (lastMessages.length === 0) {
+                    addSystemMessageToDOM("⚠️ В этом канале пока нет сообщений для сводки.");
+                    return;
+                }
+
+                // 2. Форматируем сообщения для LLM
+                let conversationContext = `Channel: ${currentChannel}\n\n`;
+                lastMessages.forEach(msgEl => {
+                    // Извлекаем имя пользователя и текст из DOM
+                    // Убедимся, что находим правильные элементы для пользователя и текста
+                    const userEl = msgEl.querySelector('.font-semibold');
+                    const textEl = msgEl.querySelector('p');
+                    
+                    if (textEl) {
+                        const user = userEl ? userEl.textContent : (msgEl.classList.contains('justify-end') ? currentUserName : 'Другой пользователь');
+                        const text = textEl.textContent;
+                        conversationContext += `${user}: ${text}\n`;
+                    }
+                });
+
+                const systemPrompt = "You are an expert chat moderator. Your task is to provide a concise, high-level summary of the preceding conversation (last 10 messages) to quickly catch up new members. The summary should be objective, clear, and delivered in Russian.";
+                
+                const summary = await makeApiCall(systemPrompt, `Conversation context:\n\n${conversationContext}\n\nProvide a summary in Russian:`, false);
+
+                // 3. Добавляем сводку в чат как системное сообщение
+                addSystemMessageToDOM(`**✨ Сводка Gemini:** ${summary}`);
+
+            } catch (error) {
+                console.error("Error summarizing channel:", error);
+                addSystemMessageToDOM("❌ Ошибка при создании сводки. Пожалуйста, попробуйте позже.");
+            } finally {
+                SUMMARY_BUTTON.disabled = false;
+                SUMMARY_TEXT.classList.remove('hidden');
+                SUMMARY_SPINNER.classList.add('hidden');
+            }
+        }
+        
+        /**
+         * Calls the TTS API to generate audio from text.
+         */
+        window.playTts = async function(text, button) {
+            
+            button.disabled = true;
+            button.innerHTML = '...'; // Индикатор загрузки
+
+            // Очистка предыдущего проигрывателя, если он есть
+            if (audioPlayer) {
+                audioPlayer.pause();
+                audioPlayer.src = '';
+            }
+            
+            const ttsApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${TTS_API_MODEL}:generateContent`;
+
+            try {
+                const payload = {
+                    contents: [{ parts: [{ text: `Say in Russian: ${text}` }] }],
+                    generationConfig: {
+                        responseModalities: ["AUDIO"],
+                        speechConfig: {
+                            voiceConfig: {
+                                prebuiltVoiceConfig: { voiceName: TTS_VOICE_NAME }
+                            }
+                        }
+                    },
+                };
+                
+                let apiResponse;
+                for (let i = 0; i < MAX_RETRIES; i++) {
+                    const response = await fetch(`${ttsApiUrl}?key=${API_KEY}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.status === 429 && i < MAX_RETRIES - 1) {
+                        const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue; // Retry
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(`TTS API call failed with status: ${response.status}`);
+                    }
+                    
+                    apiResponse = await response.json();
+                    break;
+                }
+
+                if (!apiResponse) throw new Error("TTS API call failed.");
+
+                const part = apiResponse?.candidates?.[0]?.content?.parts?.[0];
+                const audioData = part?.inlineData?.data;
+                const mimeType = part?.inlineData?.mimeType;
+
+                if (audioData && mimeType && mimeType.startsWith("audio/")) {
+                    const pcmData = base64ToArrayBuffer(audioData);
+                    // API возвращает подписанные PCM16 аудиоданные.
+                    const pcm16 = new Int16Array(pcmData);
+                    const wavBlob = pcmToWav(pcm16, PCM_SAMPLE_RATE);
+                    const audioUrl = URL.createObjectURL(wavBlob);
+                    
+                    // Создание или использование аудиоэлемента
+                    if (!audioPlayer) {
+                        audioPlayer = new Audio();
+                        audioPlayer.onended = () => {
+                            button.innerHTML = `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.414 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.414l3.879-3.879a1 1 0 011.09-.045zM14.07 7.07a1 1 0 011.666 1.057 4.194 4.194 0 000 4.746 1 1 0 01-1.666 1.057 6.194 6.194 0 010-6.86zm3.54-1.92a1 1 0 011.597 1.259 8.194 8.194 0 000 9.122 1 1 0 01-1.597 1.259 10.194 10.194 0 010-11.64z" clip-rule="evenodd"></path></svg>`;
+                            button.disabled = false;
+                        };
+                    }
+                    
+                    audioPlayer.src = audioUrl;
+                    audioPlayer.play();
+                    
+                    // Временно меняем иконку на "стоп/пауза"
+                    button.innerHTML = `<svg class="w-4 h-4 text-red-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>`;
+                    
+                } else {
+                    addSystemMessageToDOM(`❌ Не удалось сгенерировать аудио.`);
+                    throw new Error("Invalid audio data from TTS API.");
+                }
+
+            } catch (error) {
+                console.error("TTS Playback Error:", error);
+                // Восстанавливаем кнопку
+                button.innerHTML = `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.414 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.414l3.879-3.879a1 1 0 011.09-.045zM14.07 7.07a1 1 0 011.666 1.057 4.194 4.194 0 000 4.746 1 1 0 01-1.666 1.057 6.194 6.194 0 010-6.86zm3.54-1.92a1 1 0 011.597 1.259 8.194 8.194 0 000 9.122 1 1 0 01-1.597 1.259 10.194 10.194 0 010-11.64z" clip-rule="evenodd"></path></svg>`;
+                button.disabled = false;
+            } finally {
+                // Если проигрывание началось, не отключаем кнопку сразу. Она отключится в onended.
+                if (!audioPlayer || audioPlayer.paused || audioPlayer.ended) {
+                    button.disabled = false;
+                }
+            }
+        }
+
+
+        // --- Initialization ---
+
+        window.onload = setupFirebase;
+
+    </script>
 </body>
 </html>
